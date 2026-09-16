@@ -70,7 +70,7 @@ const SAMPLE = {
   md: { name: 'Priya Raman', email: 'praman@glowaesthetics.example', phone: '(469) 555-0142', npi: '1234567893' },
 };
 
-/* Mock NPPES directory for the demo. Real check is NPI Luhn (prefix 80840) then a registry lookup. */
+/* Mock MedPro directory for the demo. Real check is NPI Luhn (prefix 80840) then the MedPro lookup. */
 const NPPES = {
   '1234567893': { name: 'PRIYA RAMAN', credential: 'MD', taxonomy: 'Family Medicine', city: 'FRISCO', state: 'TX', status: 'Active' },
 };
@@ -143,14 +143,10 @@ const QUESTIONS = [
         note: '',
         effects: { on: [{ label: 'Follow-up emails after RxPad visits', value: 'on', where: 'superadmin', inv: null, via: 'follow-up templates' }],
                    off: [{ label: 'Follow-up emails after RxPad visits', value: 'off', where: 'superadmin', inv: null, via: 'follow-up templates' }] } },
-      { id: 'contacts', type: 'contacts', showIf: ['qualiphy', 'split', 'clinic'],
-        label: 'Who at your clinic should receive exam results and deferral notices? Select all that apply.',
+      { id: 'contacts', type: 'contactlist', showIf: ['qualiphy', 'split', 'clinic'], max: 5,
+        label: 'Who at your clinic should receive exam results and deferral notices?',
+        tip: 'Each contact must be reachable by phone for patient follow-up calls. Medical directors usually prefer not to take these, so add a clinical lead or front-desk contact.',
         note: '',
-        roles: [
-          { id: 'md', label: 'Medical director', default: true },
-          { id: 'nurse', label: 'Injecting nurse / clinical lead', default: true },
-          { id: 'owner', label: 'Owner / front desk', default: false },
-        ],
         effects: [{ label: 'Notification contacts (approved / deferred / N/A)', where: 'portal', inv: 'Approved-exam notification', via: 'POST /update_clinic_notification' },
                   { label: 'Role-based routing (per contact, per notice type)', where: 'nowhere', inv: null, via: 'no role model beyond one fixed manager role' }] },
     ],
@@ -159,7 +155,8 @@ const QUESTIONS = [
   {
     id: 'pcp',
     pageTitle: 'Name your patient care provider',
-    pageSub: 'The clinician patients contact about their care. Named on prescriptions and results.',
+    pageSub: 'The clinician named on prescriptions and results, and who takes patient follow-up calls.',
+    tip: 'This person takes patient follow-up calls. Medical directors often prefer not to, so name whoever will actually answer.',
     state: 'v1',
     short: 'Patient care provider',
     title: 'Who should patients contact about their care?',

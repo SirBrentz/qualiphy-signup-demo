@@ -530,6 +530,19 @@ body.wiz-mode .prodbar { left: auto; right: 24px; transform: none; bottom: auto;
   .wiz-card { padding: 20px 18px; }
 }
 
+.wiz-tip { display: flex; gap: 10px; align-items: flex-start; background: var(--wiz-purple-soft); color: var(--wiz-purple-ink); border-radius: 10px; padding: 12px 14px; font-size: 14px; margin: 0 0 14px; line-height: 1.45; }
+.wiz-tip svg { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 1px; }
+.cl-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+.cl-row { display: grid; grid-template-columns: 1.2fr 1.4fr 1fr 28px; gap: 12px; align-items: end; }
+.cl-del { font-size: 24px; line-height: 1; color: var(--ink-40); height: 48px; text-decoration: none; }
+.cl-del:hover { color: var(--no); }
+@media (max-width: 760px) { .cl-row { grid-template-columns: 1fr; } }
+.pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+@media (max-width: 900px) { .pay-grid { grid-template-columns: 1fr; } }
+.paycard .saved { display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid var(--wiz-line); border-radius: 10px; padding: 14px 16px; background: #fafaff; }
+.doc-acts { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.doc-acts .link { font-size: 14px; }
+
 /* ---------- product bar (the portal's own dashed preview-bar pattern) ---------- */
 .prodbar { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); z-index: 50; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; border: 2px dashed #fbbf24; background: #ffffffF2; padding: 8px 14px; border-radius: 12px; box-shadow: 0 10px 25px -10px #00000066; }
 .prodbar-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #d97706; margin-right: 4px; }
