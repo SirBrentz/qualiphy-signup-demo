@@ -40,6 +40,8 @@ let state = {
   portalPage: 'dashboard',
   settingsPanel: null,
   showKey: false,
+  notifModal: false,
+  notif: null,
 };
 
 function load() {
@@ -90,10 +92,20 @@ const ICONS = {
   clinicBig: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4"/><path d="M9 10h.01M12 10h.01M15 10h.01M9 14h.01M12 14h.01M15 14h.01"/></svg>',
   people: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 15.5a5 5 0 0 1 5.5 4.5"/></svg>',
   locations: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M9.9 5.2A10.5 10.5 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6A16.8 16.8 0 0 0 2 12s3.5 7 10 7c1.6 0 3-.3 4.3-.9"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 3h13a3 3 0 0 1 3 3v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zm2 2v11.2A3 3 0 0 1 7 16h11V6a1 1 0 0 0-1-1zm1 13a1 1 0 0 0 0 2h11v-2z"/></svg>',
+  ext: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+  wordpress: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM3.4 12a8.6 8.6 0 0 1 .7-3.5l4.1 11.2A8.6 8.6 0 0 1 3.4 12zm8.6 8.6a8.7 8.7 0 0 1-2.4-.4l2.6-7.5 2.6 7.3.1.1a8.6 8.6 0 0 1-2.9.5zm1.2-12.7c.5 0 1-.1 1-.1.5-.1.4-.8-.1-.7 0 0-1.4.1-2.4.1-.9 0-2.3-.1-2.3-.1-.5 0-.5.7-.1.7l.9.1 1.4 3.7-1.9 5.7-3.2-9.4c.5 0 1-.1 1-.1.5-.1.4-.8-.1-.7 0 0-1.4.1-2.4.1H5A8.6 8.6 0 0 1 12 3.4c2.2 0 4.2.8 5.7 2.2h-.1c-.8 0-1.4.7-1.4 1.5 0 .7.4 1.3.8 2 .3.5.7 1.2.7 2.2 0 .7-.3 1.5-.6 2.6l-.8 2.7-2.9-8.7zm3.3 11.8 2.6-7.5c.5-1.2.6-2.2.6-3v-.7a8.6 8.6 0 0 1-3.2 11.2z"/></svg>',
+  cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></svg>',
+  question: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg>',
+  clipEdit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6v3H9zM15 5h2a2 2 0 0 1 2 2v3M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="m18 12-5 5v3h3l5-5z"/></svg>',
   dash: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v5h-8V3zM3 13h8v8H3v-8zm10-3h8v11h-8V10z"/></svg>',
 };
 
 /* ---------- helpers ---------- */
+function toast(msg) { let el = document.getElementById('toast'); if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); } el.textContent = msg; el.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), 2200); }
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const q = id => QUESTIONS.find(x => x.id === id);
@@ -481,7 +493,7 @@ function renderSignup() {
 const PORTAL_PAGES = {
   dashboard: { title: 'Dashboard', icon: 'dash' }, results: { title: 'Patient Exams', icon: 'clipboard' }, clinics: { title: 'Clinics', icon: 'home' },
   managers: { title: 'Managers', icon: 'users' }, medication: { title: 'Medication Management', icon: 'pill' }, exams: { title: 'Exams', icon: 'clipboard' },
-  intake: { title: 'Intake Forms (Beta)', icon: 'file' }, rewards: { title: 'Rewards', icon: 'users' }, white: { title: 'White Label', icon: 'gear' }, settings: { title: 'Settings', icon: 'gear' },
+  intake: { title: 'Intake Forms (Beta)', icon: 'file' }, knowledge: { title: 'Knowledge Base', icon: 'question' }, weightloss: { title: 'Weight Loss Exam', icon: 'clipEdit' }, rewards: { title: 'Rewards', icon: 'users' }, white: { title: 'White Label', icon: 'gear' }, settings: { title: 'Settings', icon: 'gear' },
 };
 function pluginKey() { const hx = s => hashStr(s).toString(16).padStart(8, '0'); const h1 = hx('key:' + (state.form.clinic.practice || 'clinic')), h2 = hx('key2:' + (state.form.account.email || 'x')), h3 = hx('key3:' + (state.form.clinic.zip || '0')); return (h1 + h2 + h3 + h1 + h2).slice(0, 40); }
 function activeExams() { return SERVICES.filter(s => state.form.exams.services.includes(s.id)).flatMap(s => s.exams.map(e => ({ name: e, service: s.label, rx: !!s.rx }))); }
@@ -498,7 +510,7 @@ function checklistItems() {
     { t: 'Patient care provider on file', d: (ans('pcp').choice === 'md') ? mdDisplay() : (ans('pcp').fields['Full name'] || 'Not set'), done: ans('pcp').choice === 'md' || !!ans('pcp').fields['Full name'] },
     { t: 'Exams activated', d: f.exams.services.length ? `${activeExams().length} favorites ready` : 'Pick the services you offer', done: f.exams.services.length > 0 },
     { t: 'Payment method', d: f.payment.done ? 'Visa ending 4242' : 'Add a card', done: f.payment.done },
-    { t: 'Install the Quidget WordPress plugin', d: 'Settings > WordPress Quidget has your plugin key and the three install steps.', done: false, hide: !wantsQuidget(), page: 'settings', panel: 'quidget' },
+    { t: 'Install the Quidget WordPress plugin', d: 'Settings > WordPress Quidget opens the plugin site with the install steps.', done: false, hide: !wantsQuidget(), page: 'settings', panel: 'quidget' },
     { t: 'Send your first exam', d: 'Invite a patient from Send exam, or use Connect Instantly in the room.', done: false, cta: true },
   ].filter(i => !i.hide);
 }
@@ -516,7 +528,7 @@ function pageDashboard() {
       <div class="ph"><div><h1>Welcome, ${esc(firstName() || 'there')}</h1><div class="d">${esc(f.clinic.practice || 'Your clinic')} is set up. ${blocked.length ? `${blocked.length} item${blocked.length > 1 ? 's' : ''} still need${blocked.length > 1 ? '' : 's'} you.` : 'Here is what to do next.'}</div></div>
         <button class="btn primary ${next && next.cta ? 'pulse' : ''}">${ICONS.send} Send your first exam</button></div>
       <div class="tiles"><div class="tile"><div class="k">Exams sent</div><div class="v">0</div></div><div class="tile"><div class="k">Setup</div><div class="v">${pct}%</div></div><div class="tile"><div class="k">Active exams</div><div class="v">${activeExams().length}</div></div><div class="tile"><div class="k">With our team</div><div class="v">${pending.length}</div></div></div>
-      ${wantsQuidget() ? `<div class="quidget"><div class="wp">W</div><div><div class="t">Set up the Qualiphy Quidget on your WordPress site</div><div class="d">Your plugin key is ready. Install the plugin, paste the key, and patients can start an exam from any page of your site.</div></div><div class="act"><button class="btn lav sm" id="quidget-open">Open WordPress Quidget settings</button></div></div>` : ''}
+      ${wantsQuidget() ? `<div class="quidget"><div class="wp">W</div><div><div class="t">Set up the Qualiphy Quidget on your WordPress site</div><div class="d">Your plugin key is ready. Install the plugin, paste the key, and patients can start an exam from any page of your site.</div></div><div class="act"><button class="btn lav sm" id="quidget-open">Open WordPress Quidget</button></div></div>` : ''}
       <div class="sec" id="tour-checklist"><div class="sec-h"><div><div class="t">Finish setting up your practice</div><div class="d">${doneCount} of ${items.length} steps complete. Everything stays visible in Settings; this just points you at what is next.</div></div>${next ? `<button class="btn primary sm ${next.cta ? 'pulse' : ''}" ${next.page ? `data-page="${next.page}" data-panel="${next.panel || ''}"` : ''}>${next.cta ? 'Send your first exam' : 'Continue setup'}</button>` : ''}</div>
         <div class="sec-b"><div class="progress"><div class="bar" style="width:${pct}%"></div></div>
           <div class="cl">${items.map(i => `<div class="ci ${i.done ? 'done' : ''} ${i.page ? 'go' : ''}" ${i.page ? `data-page="${i.page}" data-panel="${i.panel || ''}"` : ''}><div class="ic ${i.done ? 'done' : i.warn ? 'warn' : 'todo'}">${i.done ? '&#10003;' : i.warn ? '!' : ''}</div><div><div class="t">${esc(i.t)}${!i.done && next && next.t === i.t ? '<span class="next-pill">Next</span>' : ''}${i.warn ? '<span class="badge warn" style="margin-left:8px">Waiting on signature</span>' : ''}</div><div class="d">${esc(i.d)}</div></div></div>`).join('')}</div>
@@ -554,40 +566,66 @@ function pageClinics() {
       ${f.clinic.multi === 'many' ? '<div class="callout info small">You told us you have more than one location. Add each one here; every location signs its own agreement.</div>' : ''}`;
 }
 
+const WORDPRESS_QUIDGET_URL = 'https://quidget.qualiphy.me';
+const API_DOCS_URL = 'https://api-docs.qualiphy.me';
 function pageSettings() {
-  const f = state.form; const key = pluginKey(); const shown = state.showKey; const panel = state.settingsPanel;
-  const A = ans('comms');
-  const toggles = q('comms').followups.filter(x => x.type === 'toggle');
-  const notif = `<div class="sec panel"><div class="sec-h"><div><div class="t">Notification Settings</div><div class="d">These are the choices you made at signup. Change them here any time.</div></div></div><div class="sec-b">
-      <div class="fu-group" style="margin-top:0"><div class="fu-title">Who sends patient messages</div>${q('comms').answers.map(o => `<label class="switch-row ${A.choice === o.id ? 'on' : ''}"><div class="txt">${esc(o.label)}</div><div class="ctl"><input type="radio" name="comms-choice" data-q="comms" data-a="${o.id}" ${A.choice === o.id ? 'checked' : ''} /></div></label>`).join('')}</div>
-      <div class="fu-group"><div class="fu-title">Patient communication</div>${toggles.map(t => { const on = A.fu[t.id] === undefined ? t.default : A.fu[t.id]; const applies = A.choice && t.showIf.includes(A.choice); return `<label class="switch-row ${on && applies ? 'on' : ''}" style="${applies ? '' : 'opacity:.5'}"><div class="txt">${esc(t.label)}</div><div class="ctl"><span class="sw-lbl">${on && applies ? 'Yes' : 'No'}</span><span class="switch ${on && applies ? 'on' : ''}"><input type="checkbox" data-q="comms" data-fu="${t.id}" ${on ? 'checked' : ''} ${applies ? '' : 'disabled'} /><span class="knob"></span></span></div></label>`; }).join('')}</div>
-    </div></div>`;
-  const wpq = `<div class="sec panel"><div class="sec-h"><div><div class="t">Qualiphy Quidget for WordPress</div><div class="d">Let patients start a Good Faith Exam from any page of your WordPress or WooCommerce site.</div></div><span class="wp" style="width:36px;height:36px;font-size:16px">W</span></div><div class="sec-b">
-      <ol class="steps-list">
-        <li><strong>Install the plugin.</strong> In your WordPress admin go to Plugins &rsaquo; Add New, search for <em>Qualiphy Quidget</em>, then Install and Activate.</li>
-        <li><strong>Paste your plugin key.</strong> Qualiphy &rsaquo; Settings inside WordPress asks for it once.
-          <div class="keybox" style="margin-top:8px"><code>${shown ? esc(key) : '&bull;'.repeat(28)}</code><button class="link purple key-toggle">${shown ? 'Hide' : 'Show'}</button><button class="link purple key-copy">Copy</button></div></li>
-        <li><strong>Choose the exams to offer.</strong> Your activated exams appear in the plugin; pick which ones patients can start from your site.
-          <div class="chips" style="margin-top:8px">${activeExams().slice(0, 8).map(e => `<span class="chip ok">${esc(e.name)}</span>`).join('') || '<span class="muted small">No exams activated yet.</span>'}</div></li>
-      </ol>
-      <div class="row" style="margin-top:8px"><a class="btn lav sm" href="https://wordpress.org/plugins/" target="_blank" rel="noopener">${ICONS.logout} Plugin guide</a><span class="muted small">Need a developer? Forward this page; the key is all they need.</span></div>
-    </div></div>`;
+  const key = pluginKey(); const shown = state.showKey;
   return `
       <div class="set-col">
-        <div class="sec"><div class="sec-b">
-          <div style="font-weight:600;margin-bottom:10px">API Key (Default Clinic)</div>
-          <div class="keybox"><code>${shown ? esc(key) : '&bull;'.repeat(28)}</code><button class="link purple key-toggle">${shown ? 'Hide' : 'Show'}</button><button class="link purple key-copy">Copy</button></div>
-          <div style="margin-top:12px"><a class="link purple" href="#" onclick="return false">${ICONS.file} API Documentation</a><div class="muted small">Endpoints, request formats and webhook events for this key.</div></div>
+        <div class="pcard"><div class="apikey">
+          <div class="lbl">API Key (Default Clinic)</div>
+          <div class="keyrow">${shown ? `<code>${esc(key)}</code>` : `<span class="mask">${'&bull;'.repeat(24)}</span>`}<button type="button" class="ikb key-toggle" title="${shown ? 'Hide' : 'Show'}" aria-label="${shown ? 'Hide' : 'Show'} API Key">${shown ? ICONS.eyeOff : ICONS.eye}</button><button type="button" class="ikb key-copy" title="Copy" aria-label="Copy API Key">${ICONS.copy}</button></div>
+          <div class="apifoot"><a href="${API_DOCS_URL}" target="_blank" rel="noopener noreferrer">${ICONS.book} API Documentation ${ICONS.ext}</a><p>Endpoints, request formats and webhook events for this key.</p></div>
         </div></div>
-        <button class="set-btn ${panel === 'notif' ? 'open' : ''}" data-panel="notif">Notification Settings</button>
-        ${panel === 'notif' ? notif : ''}
-        <button class="set-btn ${panel === 'quidget' ? 'open' : ''}" data-panel="quidget"><span class="wp mini">W</span> WordPress Quidget</button>
-        ${panel === 'quidget' ? wpq : ''}
-        <button class="set-btn">Change Password</button>
-        <button class="set-btn filled">Change Email</button>
-        <button class="set-btn danger" id="set-logout">Logout</button>
+        <button type="button" class="set-btn" id="set-notif">Notification Settings</button>
+        <a class="set-btn ${state.settingsPanel === 'quidget' ? 'hilite' : ''}" id="set-wpq" href="${WORDPRESS_QUIDGET_URL}" target="_blank" rel="noopener noreferrer">${ICONS.wordpress} WordPress Quidget ${ICONS.ext}</a>
+        <button type="button" class="set-btn">Change Password</button>
+        <button type="button" class="set-btn">Change Email</button>
+        <button type="button" class="set-btn danger" id="set-logout">Logout</button>
         
-      </div>`;
+      </div>
+      ${state.notifModal ? notifModalHtml() : ''}`;
+}
+
+/* Legacy ClinicNotificationSettingsModal, seeded from the wizard answers: the contacts the
+   clinic picked become Approved / Deferred contacts; the outreach toggle is the
+   "Qualiphy Providers Contact Patients for Pending Consultations" switch. */
+function seedNotif() {
+  const A = ans('comms'); const f = state.form; const sel = A.fu.contacts || {};
+  const roles = (q('comms').followups.find(x => x.type === 'contacts') || { roles: [] }).roles;
+  const on = id => { const r = roles.find(x => x.id === id); return sel[id] === undefined ? !!(r && r.default) : !!sel[id]; };
+  const contacts = [];
+  const [af, ...al] = (f.clinic.adminName || 'Dana Whitfield').split(' ');
+  if (on('md') && f.md.name) { const [mf, ...ml] = f.md.name.split(' '); contacts.push({ first: mf, last: ml.join(' '), email: f.md.email || '', mobile: f.md.phone || '' }); }
+  if (on('nurse')) contacts.push({ first: af, last: al.join(' '), email: f.account.email || '', mobile: f.clinic.adminPhone || '' });
+  if (on('owner') && !on('nurse')) contacts.push({ first: af, last: al.join(' '), email: f.account.email || '', mobile: f.clinic.adminPhone || '' });
+  const any = contacts.length > 0 && A.choice !== 'clinic';
+  const outreach = A.fu.outreach === undefined ? true : !!A.fu.outreach;
+  const blank = () => [{ first: '', last: '', email: '', mobile: '' }];
+  return { approve: { value: any, contacts: any ? contacts.map(c => ({ ...c })) : blank() }, reject: { value: any, contacts: any ? contacts.map(c => ({ ...c })) : blank() }, na: { value: false, contacts: blank() }, pending: outreach };
+}
+function notifModalHtml() {
+  const n = state.notif || (state.notif = seedNotif());
+  const sw = (id, on, label) => `<div class="nrow"><label class="pswitch ${on ? 'on' : ''}"><input type="checkbox" data-notif="${id}" ${on ? 'checked' : ''} /><span class="slider"></span></label><span class="nlbl">${label}</span></div>`;
+  const cards = (type, list) => `<div class="ncontacts">${list.map((c, i) => `<div class="ncard">${i > 0 ? `<div class="ncard-x"><button type="button" class="nx" data-notif-del="${type}:${i}" title="Remove">&#128465;</button></div>` : ''}
+      <div class="nf"><label>First Name</label><input placeholder="First Name" value="${esc(c.first)}" data-notif-field="${type}:${i}:first" /></div>
+      <div class="nf"><label>Last Name</label><input placeholder="Last Name" value="${esc(c.last)}" data-notif-field="${type}:${i}:last" /></div>
+      <div class="nf"><label>Email</label><input placeholder="abc@gmail.com" value="${esc(c.email)}" data-notif-field="${type}:${i}:email" /></div>
+      ${type !== 'approve' && i < 2 ? `<div class="nf"><label>Phone Number <span class="ninfo" title="Only first two contacts may have phone numbers included for SMS notifications.">${ICONS.info}</span></label><input placeholder="(999) 999-9999" value="${esc(c.mobile)}" data-notif-field="${type}:${i}:mobile" /></div>` : ''}
+    </div>`).join('')}${list.length < 5 ? `<button type="button" class="btn lav sm nadd" data-notif-add="${type}">Add Another Contact</button>` : ''}</div>`;
+  return `<div class="lmodal-wrap"><div class="lmodal">
+    <div class="lmodal-h"><div class="t">Notification Settings</div><button type="button" class="lmodal-x" id="notif-close" aria-label="Close">${ICONS.cross}</button></div>
+    <div class="lmodal-b">
+      <div class="pdrop"><span>${esc(state.form.clinic.practice || 'Select a Clinic')}</span><span class="chev">&#9662;</span></div>
+      <div class="nlist">
+        ${sw('approve', n.approve.value, 'Approved Notification')}${n.approve.value ? cards('approve', n.approve.contacts) : ''}
+        ${sw('reject', n.reject.value, 'Deferred Notification')}${n.reject.value ? cards('reject', n.reject.contacts) : ''}
+        ${sw('na', n.na.value, 'Not Applicable Notification')}${n.na.value ? cards('na', n.na.contacts) : ''}
+        ${sw('pending', n.pending, 'Qualiphy Providers Contact Patients for Pending Consultations')}
+      </div>
+      <button type="button" class="set-btn" id="notif-save" style="margin-top:16px">Save</button>
+    </div>
+  </div></div>`;
 }
 
 function pagePlaceholder(page) {
@@ -597,7 +635,7 @@ function pagePlaceholder(page) {
 
 function renderPortal() {
   const page = PORTAL_PAGES[state.portalPage] ? state.portalPage : 'dashboard';
-  const menu = [['Results', 'clipboard', 'results'], ['Clinics', 'home', 'clinics'], ['Managers', 'users', 'managers'], ['Medication Management', 'pill', 'medication'], ['Exams', 'clipboard', 'exams'], ['Intake Forms (Beta)', 'file', 'intake'], ['Rewards', 'users', 'rewards'], ['White Label', 'gear', 'white'], ['Settings', 'gear', 'settings']];
+  const menu = [['Results', 'clipboard', 'results'], ['Clinics', 'home', 'clinics'], ['Managers', 'users', 'managers'], ['Medication Management', 'pill', 'medication'], ['Exams', 'clipboard', 'exams'], ['Intake Forms (Beta)', 'file', 'intake'], ['Knowledge Base', 'question', 'knowledge'], ['Weight Loss Exam', 'clipEdit', 'weightloss'], ['Rewards', 'users', 'rewards'], ['White Label', 'gear', 'white'], ['Settings', 'gear', 'settings']];
   const body = page === 'dashboard' ? pageDashboard() : page === 'results' ? pageResults() : page === 'exams' ? pageExams() : page === 'clinics' ? pageClinics() : page === 'settings' ? pageSettings() : pagePlaceholder(page);
   return `<div class="portal">
     <aside class="sidemenu"><div class="logo-wrap"><img src="assets/logo_white.png" alt="Qualiphy" /></div><a class="dash ${page === 'dashboard' ? 'active' : ''}" data-page="dashboard"><span>Dashboard</span><span class="x">&times;</span></a>${menu.map(([l, i, key]) => `<a class="mi ${page === key ? 'active' : ''}" id="tour-${key}" data-page="${key}"><span class="ico">${ICONS[i]}</span>${esc(l)}</a>`).join('')}<a class="mi logout" id="set-logout"><span class="ico">${ICONS.logout}</span>Logout</a></aside>
@@ -677,10 +715,15 @@ document.addEventListener('click', e => {
   if (e.target.id === 'btn-back') { back(); return; }
   const nav = e.target.closest('[data-page]');
   if (nav && state.view === 'portal' && !e.target.closest('.tour-card')) { state.portalPage = nav.dataset.page; state.settingsPanel = nav.dataset.panel || null; state.showKey = false; render(); window.scrollTo(0, 0); return; }
-  if (e.target.id === 'quidget-open') { state.portalPage = 'settings'; state.settingsPanel = 'quidget'; render(); window.scrollTo(0, 0); return; }
+  if (e.target.id === 'quidget-open') { state.portalPage = 'settings'; state.settingsPanel = 'quidget'; render(); window.scrollTo(0, 0); setTimeout(() => { state.settingsPanel = null; const b = $('#set-wpq'); if (b) b.classList.remove('hilite'); }, 2400); return; }
+  if (e.target.id === 'set-notif') { state.notif = seedNotif(); state.notifModal = true; render(); return; }
+  if (e.target.id === 'notif-close' || e.target.closest('#notif-close') || (e.target.classList.contains('lmodal-wrap'))) { if (state.notifModal) { state.notifModal = false; render(); return; } }
+  if (e.target.id === 'notif-save') { state.notifModal = false; render(); toast('Notification settings updated successfully'); return; }
+  const nadd = e.target.closest('[data-notif-add]'); if (nadd) { state.notif[nadd.dataset.notifAdd].contacts.push({ first: '', last: '', email: '', mobile: '' }); render(); return; }
+  const ndel = e.target.closest('[data-notif-del]'); if (ndel) { const [t, i] = ndel.dataset.notifDel.split(':'); state.notif[t].contacts.splice(+i, 1); render(); return; }
   const sb = e.target.closest('.set-btn[data-panel]'); if (sb) { state.settingsPanel = state.settingsPanel === sb.dataset.panel ? null : sb.dataset.panel; render(); return; }
-  if (e.target.classList.contains('key-toggle')) { state.showKey = !state.showKey; render(); return; }
-  if (e.target.classList.contains('key-copy')) { try { navigator.clipboard.writeText(pluginKey()); } catch (x) {} e.target.textContent = 'Copied'; setTimeout(() => { e.target.textContent = 'Copy'; }, 1200); return; }
+  const kc = e.target.closest('.key-copy'); if (kc) { try { navigator.clipboard.writeText(pluginKey()); } catch (x) {} toast('API Key (Default Clinic) copied to clipboard'); return; }
+  const kt = e.target.closest('.key-toggle'); if (kt) { state.showKey = !state.showKey; render(); return; }
   if (e.target.closest('#set-logout')) { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.view = 'signup'; state.step = 0; state.sub = 0; state.portalPage = 'dashboard'; render(); window.scrollTo(0, 0); return; }
   if (e.target.id === 'tour-next') { if (state.tour.step < TOUR.length - 1) { state.tour.step++; } else { state.tour = { active: false, step: 0, done: true }; } render(); return; }
   if (e.target.id === 'tour-skip') { state.tour = { active: false, step: 0, done: true }; render(); return; }
@@ -710,6 +753,8 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'toggle-plumbing') { state.showPlumbing = t.checked; render(); return; }
   if (t.dataset.path && t.type === 'checkbox') { setPath(t.dataset.path, t.checked); render(); return; }
+  if (t.dataset.notif) { const n = state.notif; if (t.dataset.notif === 'pending') n.pending = t.checked; else n[t.dataset.notif].value = t.checked; render(); return; }
+  if (t.dataset.notifField) { const [ty, i, k] = t.dataset.notifField.split(':'); state.notif[ty].contacts[+i][k] = t.value; return; }
   if (t.type === 'radio' && t.dataset.q && t.dataset.a) { const A = ans(t.dataset.q); A.choice = t.dataset.a; A.seeded = false; render(); return; }
   if (t.dataset.path && t.tagName === 'SELECT') { setPath(t.dataset.path, t.value); render(); return; }
   if (t.classList.contains('state') && t.dataset.qid) { state.qstate[t.dataset.qid] = t.value; state.sub = 0; render(); return; }
