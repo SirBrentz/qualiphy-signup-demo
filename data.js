@@ -93,11 +93,14 @@ const SERVICES = [
 const QUESTIONS = [
   {
     id: 'comms',
+    pageTitle: 'Set your communication preferences',
+    pageSub: 'Choose who contacts patients and who receives exam updates.',
     state: 'v1',
     short: 'Patient communications',
-    title: 'Who should send patient emails and texts for a visit?',
+    title: 'Who sends patient messages?',
     help: 'Pick one. Then set a few details for the option you picked.',
-    groupTitle: { qualiphy: 'Because Qualiphy will send the messages, tell us how:', split: 'Because Qualiphy sends only the invite, tell us how:', clinic: 'Because you will send your own messages:' },
+    groupTitle: { qualiphy: 'Qualiphy message settings', split: 'Qualiphy message settings', clinic: 'Your message settings' },
+    groupSub: { qualiphy: 'Applies because Qualiphy sends your patient messages.', split: 'Applies to the invite Qualiphy sends.', clinic: 'Applies because your clinic sends its own messages.' },
     why: '',
     covers: [],
     by: [],
@@ -155,9 +158,11 @@ const QUESTIONS = [
 
   {
     id: 'pcp',
+    pageTitle: 'Name your patient care provider',
+    pageSub: 'The clinician patients contact about their care. Named on prescriptions and results.',
     state: 'v1',
     short: 'Patient care provider',
-    title: 'Who should patients contact at your clinic about their care?',
+    title: 'Who should patients contact about their care?',
     help: 'Named on prescriptions and results as the patient\'s point of contact. Prescriptions cannot be sent without one, and today that failure is silent.',
     why: '',
     covers: [],
@@ -178,9 +183,11 @@ const QUESTIONS = [
 
   {
     id: 'pharmacy',
+    pageTitle: 'Choose how prescriptions are filled',
+    pageSub: 'Shown because you chose good faith exams + prescriptions.',
     state: 'v1',
     short: 'Prescription fulfilment',
-    title: 'How should prescriptions be filled for your patients?',
+    title: 'How should prescriptions be filled?',
     help: 'Shown because you chose GFE + prescriptions in the agreement step.',
     onlyIf: 'rx',
     why: '',
@@ -205,6 +212,8 @@ const QUESTIONS = [
 
   {
     id: 'workflow',
+    pageTitle: 'Tell us how you will work with Qualiphy',
+    pageSub: 'Most clinics do everything from the Qualiphy portal. Pick the one that matches how your patients reach you.',
     state: 'v1',
     short: 'How you will work with Qualiphy',
     title: 'How will you send exam invites and manage patients?',

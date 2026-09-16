@@ -79,6 +79,17 @@ const ICONS = {
   chat: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 1-2z"/></svg>',
   logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 17l5-5-5-5M15 12H3M13 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
+  docPlus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>',
+  help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>',
+  clinicBig: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4"/><path d="M9 10h.01M12 10h.01M15 10h.01M9 14h.01M12 14h.01M15 14h.01"/></svg>',
+  people: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 15.5a5 5 0 0 1 5.5 4.5"/></svg>',
+  locations: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/></svg>',
   dash: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v5h-8V3zM3 13h8v8H3v-8zm10-3h8v11h-8V10z"/></svg>',
 };
 
@@ -157,12 +168,11 @@ function allEffects(Q) {
 }
 
 /* ---------- step validity ---------- */
-const CLINIC_SUBS = 4;
+const CLINIC_SUBS = 3;
 function clinicSubValid(sub) {
   const c = state.form.clinic;
-  if (sub === 0) return !!c.practice;
-  if (sub === 1) return !!(c.address1 && c.city && c.state && c.zip);
-  if (sub === 2) return !!c.adminName;
+  if (sub === 0) return !!(c.practice && c.address1 && c.city && c.state && c.zip);
+  if (sub === 1) return !!c.adminName;
   return true;
 }
 let lastSuggest = [];
@@ -223,7 +233,7 @@ function addressMatches(qs) {
 /* ---------- live address lookup (OpenStreetMap Nominatim; demo only, debounced, <= 1 req/s) ---------- */
 const ADDR_LIVE = { timer: null, ctrl: null, lastQ: '', ok: null, status: '' };
 function addrQueryReady(q) { return /\d+\s+[a-z]{3,}/i.test(q.trim()); }
-function itemHtml(m, i, q) { return `<div class="sg ${i === 0 ? 'hi' : ''}" data-sg="${i}"><div class="main">${hi(m.line1, q)}</div><div class="sub">${m.city ? esc(m.city) + ', ' : ''}${esc(m.state)} ${esc(m.zip)}</div></div>`; }
+function itemHtml(m, i, q) { return `<div class="sg ${i === 0 ? 'hi' : ''}" data-sg="${i}"><span class="sg-pin">${ICONS.pin}</span><div class="sg-txt"><div class="main">${hi(m.line1, q)}</div><div class="sub">${m.city ? esc(m.city) + ', ' : ''}${esc(m.state)} ${esc(m.zip)}</div></div></div>`; }
 function renderSuggest(list, status, q) {
   const box = $('#addr-suggest'); if (!box) return;
   lastSuggest = list;
@@ -302,8 +312,9 @@ function stepValid(id) {
 }
 
 /* ---------- renderers ---------- */
-function stepper() {
-  return `<div class="stepper">${STEPS.map((s, i) => `<div class="st ${i < state.step ? 'done' : i === state.step ? 'cur' : ''}"><div class="dot">${i < state.step ? '&#10003;' : i + 1}</div><div class="lbl">${esc(s.label)}</div></div>`).join('')}</div>`;
+function wizSide() {
+  const items = STEPS.map((s, i) => { const st = i < state.step ? 'done' : i === state.step ? 'cur' : 'todo'; return `<div class="ws ${st}"><span class="dot">${st === 'done' ? ICONS.check : i + 1}</span><span class="lbl">${esc(s.label)}</span></div>`; }).join('');
+  return `<aside class="wiz-side"><div class="wiz-logo"><img src="assets/logo_black.png" alt="Qualiphy" /></div><div class="wiz-eyebrow">Clinic setup</div><nav class="wiz-steps">${items}</nav><div class="wiz-help"><span class="ico">${ICONS.help}</span><div><div class="q">Need a hand?</div><a href="#" onclick="return false">Contact support</a></div></div></aside>`;
 }
 function field(label, path, opts = {}) {
   const [g, k] = path.split('.'); const v = state.form[g][k];
@@ -314,11 +325,14 @@ function selectField(label, path, options, ph) {
   return `<div class="field"><label>${esc(label)}</label><select data-path="${path}"><option value="">${esc(ph || 'Select')}</option>${options.map(o => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
 }
 const firstName = () => (state.form.clinic.adminName || '').trim().split(/\s+/)[0] || '';
-function footer(nextLabel, canNext, extraLeft = '') {
-  return `<div class="card-f"><div class="left">${state.step > 0 ? '<button class="btn" id="btn-back">Back</button>' : ''}${extraLeft}</div><button class="btn primary" id="btn-next" ${canNext ? '' : 'disabled'}>${nextLabel}</button></div>`;
+let wizFoot = '';
+function footer(nextLabel, canNext, extraLeft = '', blocked = '') {
+  wizFoot = `<div class="left">${state.step > 0 ? '<button class="btn" id="btn-back">Back</button>' : ''}${extraLeft}</div><div class="right"><span class="wiz-status">${canNext ? 'Changes saved' : esc(blocked)}</span><button class="btn primary" id="btn-next" ${canNext ? '' : 'disabled'}>${nextLabel} ${ICONS.arrow}</button></div>`;
+  return '';
 }
-function card(kicker, title, sub, body, foot) {
-  return `<div class="card"><div class="card-h">${kicker ? `<div class="step-kicker">${esc(kicker)}</div>` : ''}<h2>${title}</h2>${sub ? `<div class="sub">${sub}</div>` : ''}</div><div class="card-b">${body}</div>${foot || ''}</div>`;
+function card(kicker, title, sub, body, foot, opts = {}) {
+  const n = String(state.step + 1).padStart(2, '0'); const N = String(STEPS.length).padStart(2, '0');
+  return `<div class="wiz-count">${n} / ${N}</div><h1 class="wiz-h1">${title}</h1>${sub ? `<div class="wiz-sub">${sub}</div>` : ''}${opts.bare ? body : `<div class="wiz-card">${body}</div>`}`;
 }
 
 const R = {};
@@ -334,41 +348,44 @@ R.account = () => `<div class="auth"><div class="auth-card">
   <div class="demo"><button class="link" id="btn-fill-account">Use sample</button></div>
 </div></div>`;
 
-R.terms = () => card('Step 2 of 8', 'Terms of use', 'Please review and accept to continue.',
+R.terms = () => card('', 'Review the terms of use', 'Please read and accept to continue.',
   `<div class="terms-box"><h4>Qualiphy Terms of Use (summary for the demo)</h4>Qualiphy PC provides asynchronous and synchronous good faith exams and prescription consultations to licensed clinics. The clinic is responsible for the accuracy of the information it provides, for maintaining a supervising medical director where required by state law, and for its own patient communications when it elects to send them. Fees are billed per completed exam. Qualiphy is a consulting entity and does not serve as the patient’s primary care provider. Full terms are provided in the signed service agreement.<br/><br/>By continuing you confirm you are authorised to bind the clinic to these terms.</div>
-   <label class="check ${state.form.terms.accepted ? 'on' : ''}" style="margin-top:14px"><input type="checkbox" data-path="terms.accepted" ${state.form.terms.accepted ? 'checked' : ''} /><div><div class="t">I have read and accept the Terms of Use</div><div class="n">Figma: Terms of Use Confirmation.</div></div></label>`,
-  footer('Continue', stepValid('terms')));
+   <label class="check ${state.form.terms.accepted ? 'on' : ''}" style="margin-top:16px"><input type="checkbox" data-path="terms.accepted" ${state.form.terms.accepted ? 'checked' : ''} /><div><div class="t">I have read and accept the Terms of Use</div><div class="n">A copy is emailed to you once setup is complete.</div></div></label>`,
+  footer('Continue', stepValid('terms'), '', 'Accept the terms to continue'));
 
 R.clinic = () => {
   const c = state.form.clinic; const sub = state.sub;
-  const bar = '';
   let title = '', help = '', body = '';
   if (sub === 0) {
-    title = 'What is your practice called?'; help = 'This is the name patients and providers will see.';
-    body = `<div class="grid two">${field('Name of Practice', 'clinic.practice', { ph: 'Name of Practice' })}${field('Practice phone (optional)', 'clinic.phone', { ph: '(___) ___-____' })}</div>`;
-  } else if (sub === 1) {
-    title = 'Where is your practice located?'; help = 'Start typing and pick your address. You can edit anything after.';
+    title = 'Tell us about your clinic'; help = 'A few details to get your practice set up.';
     const picked = c.addrPicked || c.addrManual;
-    if (!picked) {
-      body = `<div class="field addr-wrap"><label>Address</label><span class="pin">${ICONS.pin}</span><input id="addr-search" data-addr="1" value="${esc(c.addrQuery)}" placeholder="Start with the house number, e.g. 4200 Legacy Dr" autocomplete="off" /><div class="suggest" id="addr-suggest"></div></div>
-        <div class="muted small geo-line" style="margin-top:10px">Can't find it? <button class="link purple" id="addr-manual">Enter the address manually</button></div>`;
-    } else {
-      body = `${c.addrPicked ? `<div class="addr-picked"><div class="picked"><div><div class="t">${esc(c.address1)}</div><div class="d">${esc(c.city)}, ${esc(c.state)} ${esc(c.zip)}</div></div><button class="link purple" id="addr-change">Change</button></div></div>` : ''}
-        <div class="grid two" style="margin-top:16px">${field('Address Line 1', 'clinic.address1', { ph: 'Address Line 1' })}${field('Address Line 2 (optional)', 'clinic.address2', { ph: 'Suite, floor, unit' })}</div>
-        <div class="grid three" style="margin-top:16px">${field('City', 'clinic.city', { ph: 'City' })}${selectField('State', 'clinic.state', STATES, 'Select State')}${field('Zip Code', 'clinic.zip', { max: 10, ph: 'Zip Code' })}</div>`;
-    }
-  } else if (sub === 2) {
-    title = 'Who manages this account?'; help = 'The person we contact about the account. Signed in as ' + (state.form.account.email || 'you') + '.';
-    body = `<div class="grid two">${field('Full Name', 'clinic.adminName', { ph: 'Full Name' })}${field('Phone Number', 'clinic.adminPhone', { ph: '(___) ___-____' })}</div>`;
+    const addr = !picked
+      ? `<div class="field addr-wrap"><label>Address</label><span class="pin">${ICONS.search}</span><input id="addr-search" data-addr="1" value="${esc(c.addrQuery)}" placeholder="Start with the house number, e.g. 4200 Legacy Dr" autocomplete="off" /><div class="suggest" id="addr-suggest"></div></div>
+         <div class="small geo-line" style="margin-top:12px"><button class="link purple" id="addr-manual">Enter address manually</button></div>`
+      : `${c.addrPicked ? `<div class="addr-picked"><div class="picked"><div><div class="t">${esc(c.address1)}</div><div class="d">${esc(c.city)}, ${esc(c.state)} ${esc(c.zip)}</div></div><button class="link purple" id="addr-change">Change</button></div></div>` : ''}
+         <div class="grid two" style="margin-top:16px">${field('Address line 1', 'clinic.address1', { ph: 'Street address' })}${field('Address line 2 (optional)', 'clinic.address2', { ph: 'Suite, floor, unit' })}</div>
+         <div class="grid three" style="margin-top:16px">${field('City', 'clinic.city', { ph: 'City' })}${selectField('State', 'clinic.state', STATES, 'Select state')}${field('ZIP code', 'clinic.zip', { max: 10, ph: 'ZIP' })}</div>`;
+    body = `<div class="wiz-cols"><div>
+        <h3 class="wiz-h3">Practice details</h3>
+        <div class="stack">${field('Practice name', 'clinic.practice', { ph: 'Name of practice' })}${field('Practice phone (optional)', 'clinic.phone', { ph: '(___) ___-____' })}</div>
+        <hr class="wiz-hr" />
+        <h3 class="wiz-h3">Practice location</h3><div class="wiz-h3sub">Start typing your address, then select a match.</div>
+        ${addr}
+      </div>
+      <aside class="wiz-aside"><div class="ico">${ICONS.clinicBig}</div><div class="t">Your clinic profile</div><div>This is the practice information patients and providers will see.</div></aside></div>`;
+  } else if (sub === 1) {
+    title = 'Who manages this account?'; help = 'The person we contact about the account. Signed in as ' + esc(state.form.account.email || 'you') + '.';
+    body = `<div class="wiz-cols"><div><h3 class="wiz-h3">Account manager</h3><div class="grid two">${field('Full name', 'clinic.adminName', { ph: 'Full name' })}${field('Phone number', 'clinic.adminPhone', { ph: '(___) ___-____' })}</div></div>
+      <aside class="wiz-aside"><div class="ico">${ICONS.people}</div><div class="t">Your account manager</div><div>Signs the service agreement and hears from us about billing, results and anything that needs a decision.</div></aside></div>`;
   } else {
-    title = 'Do you have more than one location?'; help = 'You can add more locations any time from Locations.';
-    body = `<div class="opts">
-       <label class="opt ${c.multi === 'one' ? 'sel' : ''}" data-radio="clinic.multi" data-val="one"><div class="t">Just this one <span class="rec-txt">Most clinics</span></div></label>
-       <label class="opt ${c.multi === 'many' ? 'sel' : ''}" data-radio="clinic.multi" data-val="many"><div class="t">More than one</div><div class="d">Add the others from Locations after setup. Each location signs its own agreement and can have its own medical director.</div></label>
-     </div>`;
+    title = 'Do you have more than one location?'; help = 'You can add more locations any time from Clinics.';
+    body = `<div class="wiz-cols"><div><div class="opts">
+        <label class="opt ${c.multi === 'one' ? 'sel' : ''}" data-radio="clinic.multi" data-val="one"><div class="t">Just this one <span class="rec-pill">Most clinics</span></div><div class="d">Everything you set up here applies to ${esc(c.practice || 'your clinic')}.</div></label>
+        <label class="opt ${c.multi === 'many' ? 'sel' : ''}" data-radio="clinic.multi" data-val="many"><div class="t">More than one</div><div class="d">Add the others from Clinics after setup. Each location signs its own agreement and can have its own medical director.</div></label>
+      </div></div>
+      <aside class="wiz-aside"><div class="ico">${ICONS.locations}</div><div class="t">Locations</div><div>Results, exams and billing are tracked per location, so each one gets its own profile.</div></aside></div>`;
   }
-  const foot = `<div class="card-f"><div class="left"><button class="btn" id="btn-back">Back</button>${sub === 0 ? '<button class="link" id="btn-fill-clinic">Use sample</button>' : ''}</div><button class="btn primary" id="btn-next" ${clinicSubValid(sub) ? '' : 'disabled'}>Continue</button></div>`;
-  return `<div class="focus-q">${bar}${card('', title, help, body, foot)}</div>`;
+  return card('', title, help, body, footer('Continue', clinicSubValid(sub), sub === 0 ? '<button class="link" id="btn-fill-clinic">Use sample</button>' : '', sub === 0 ? 'Add your practice name and address to continue' : sub === 1 ? 'Add the account manager to continue' : ''));
 };
 
 R.md = () => {
@@ -377,83 +394,87 @@ R.md = () => {
   if (m.npi && m.verified === true) { const r = npiLookup(m.npi).rec; msg = `<div class="msg ok">&#10003; Verified in the NPI registry: ${esc(r.name)}${r.credential ? ', ' + esc(r.credential) : ''}${r.taxonomy ? ' · ' + esc(r.taxonomy) : ''}${r.city ? ' · ' + esc(r.city) + ', ' + esc(r.state) : ''} · ${esc(r.status)}</div>`; }
   else if (m.npi && m.verified === false) { msg = `<div class="msg err">${esc(npiLookup(m.npi).reason || 'We could not verify this NPI.')} Check the number on <a href="https://npiregistry.cms.hhs.gov/" target="_blank" rel="noopener">npiregistry.cms.hhs.gov</a>.</div>`; }
   else if (m.npi) { msg = '<div class="msg wait">Enter all 10 digits and we will verify it.</div>'; }
-  return card('Step 4 of 8', 'Your medical director', 'The physician who supervises care at your clinic. We verify the NPI before you can continue.',
-    `<div class="grid two">${field('Full name', 'md.name', { ph: 'First Last' })}${field('Email', 'md.email', { type: 'email' })}</div>
-     <div class="grid two" style="margin-top:14px">${field('Phone', 'md.phone')}${field('NPI number', 'md.npi', { max: 10, ph: '10 digits', err: m.verified === false, msg })}</div>
-     ${m.verified === false ? '<div class="callout warn" style="margin-top:14px"><strong>We could not verify this medical director.</strong> Setup cannot continue until the NPI matches an active record. If you are not sure who your medical director is, save your progress and come back.</div>' : ''}
-     `,
-    footer('Verify and continue', stepValid('md'), '<button class="link" id="btn-fill-md">Use sample</button>'));
+  return card('', 'Who is your medical director?', 'The physician who supervises care at your clinic. We verify the NPI before you continue.',
+    `<div class="wiz-cols"><div>
+       <h3 class="wiz-h3">Medical director</h3>
+       <div class="grid two">${field('Full name', 'md.name', { ph: 'First Last' })}${field('Email', 'md.email', { type: 'email', ph: 'name@clinic.com' })}</div>
+       <div class="grid two" style="margin-top:16px">${field('Phone', 'md.phone', { ph: '(___) ___-____' })}${field('NPI number', 'md.npi', { max: 10, ph: '10 digits', err: m.verified === false, msg })}</div>
+       ${m.verified === false ? '<div class="callout warn" style="margin-top:16px"><strong>We could not verify this medical director.</strong> Setup cannot continue until the NPI matches an active record. If you are not sure who your medical director is, save your progress and come back.</div>' : ''}
+       
+     </div>
+     <aside class="wiz-aside"><div class="ico">${ICONS.shield}</div><div class="t">Why we verify</div><div>Every exam is supervised by a licensed physician. We check the NPI against the national registry so the medical director on file is real and active.</div></aside></div>`,
+    footer('Verify and continue', stepValid('md'), '<button class="link" id="btn-fill-md">Use sample</button>', m.verified === false ? 'Fix the NPI to continue' : 'Enter your medical director and NPI to continue'));
 };
 
 R.agreement = () => {
-  const a = state.form.agreement;
-  return card('Step 5 of 8', 'Choose your level of service and sign', 'One agreement covers both good faith exams and prescriptions, so you never have to come back for a second signature.',
-    `<div class="levels">
-       <div class="level ${a.level === 'gfe' ? 'sel' : ''}" data-level="gfe"><div class="t">Good faith exams</div><div class="d">Medical clearance for aesthetics, IV therapy and wellness services.</div><ul><li>Async or live video exams</li><li>Results back to your portal</li></ul></div>
-       <div class="level ${a.level === 'rx' ? 'sel' : ''}" data-level="rx"><div class="t">Good faith exams + prescriptions <span class="rec-txt">Recommended</span></div><div class="d">Everything in GFE, plus prescription consultations with pharmacy fulfilment.</div><ul><li>GLP-1, peptides, hair, ED, hormones</li><li>Partner pharmacy shipping and tracking</li></ul></div>
-     </div>
-     <div class="sign">
-       <div class="doc"><div><div class="t">Qualiphy Service Agreement (GFE and Rx)</div><div class="d">Signed by ${esc(state.form.clinic.adminName || 'you')} on behalf of ${esc(state.form.clinic.practice || 'the clinic')}${a.level === 'rx' ? `, with medical director ${esc(mdDisplay())} countersigning the prescribing addendum` : ''}.</div></div>
-         ${a.signed ? `<div class="sigline">${esc(state.form.clinic.adminName || 'Dana Whitfield')}</div>` : '<button class="btn primary sm" id="btn-sign">Review and sign</button>'}</div>
-       ${a.level === 'rx' ? `<div class="doc"><div><div class="t">Prescribing addendum</div><div class="d">Sent to ${esc(state.form.md.email || 'your medical director')} for QualiSign. You can keep going; prescribing unlocks when it is countersigned.</div></div><span class="badge ${a.signed ? 'cond' : 'muted'}">${a.signed ? 'Sent to MD' : 'Waiting'}</span></div>` : ''}
-     </div>
-     `,
-    footer('Continue', stepValid('agreement')));
+  const a = state.form.agreement; const admin = state.form.clinic.adminName || 'Account admin'; const practice = state.form.clinic.practice || 'your clinic';
+  const lvl = (id, ico, title, desc, bullets, rec) => `<div class="level ${a.level === id ? 'sel' : ''}" data-level="${id}"><div class="lv-top"><span class="lv-ico">${ico}</span>${rec ? '<span class="rec-pill">Recommended</span>' : ''}<span class="lv-radio"></span></div><div class="t">${title}</div><div class="d">${desc}</div><ul>${bullets.map(b => `<li>${b}</li>`).join('')}</ul></div>`;
+  return card('', 'Choose your level of service', 'One agreement covers your selected services.',
+    `<div class="levels">${lvl('gfe', ICONS.doc, 'Good faith exams', 'Medical clearance for your clinic', ['Async review or video visit', 'Results in your portal'])}${lvl('rx', ICONS.docPlus, 'Good faith exams + prescriptions', 'Exams and prescription consultations', ['Everything in Good faith exams', 'Partner pharmacy fulfillment'], true)}</div>
+     <div class="wiz-card sign-card"><h3 class="wiz-h3">Review and sign</h3>
+       <div class="doc"><span class="doc-ico">${ICONS.doc}</span><div><div class="t">Service agreement</div><div class="d">${esc(admin)} &middot; ${esc(practice)}</div></div><span class="status-pill ok">${a.signed ? 'Signed' : 'Ready to sign'}</span>${a.signed ? `<div class="sigline">${esc(admin)}</div>` : '<button class="btn primary sm" id="btn-sign">Review &amp; sign</button>'}</div>
+       ${a.level === 'rx' ? `<div class="doc"><span class="doc-ico">${ICONS.docPlus}</span><div><div class="t">Prescribing addendum</div><div class="d">${esc(mdDisplay())} &middot; Medical director</div></div><span class="status-pill muted">${a.signed ? 'Awaiting signature' : 'Sent after you sign'}</span><button class="link purple nou">View details</button></div><div class="wiz-info">${ICONS.info}<span>You can continue setup while your medical director signs. Prescribing becomes available once the addendum is signed.</span></div>` : ''}
+       
+     </div>`,
+    footer('Continue', stepValid('agreement'), '', 'Sign the service agreement to continue'), { bare: true });
 };
 
 R.profile = () => {
   const ids = activeQs();
-  if (!ids.length) return card('Step 6 of 8', 'Setup questions', '', '<div class="empty">No questions are in v1. Add some in Questions.</div>', footer('Continue', true));
+  if (!ids.length) return card('', 'Setup questions', '', '<div class="empty">No questions are in v1. Add some in Questions.</div>', footer('Continue', true));
   if (state.sub >= ids.length) state.sub = ids.length - 1;
   const id = ids[state.sub]; const Q = q(id); const A = ans(id);
-  const substeps = '';
   const opts = Q.answers.map(a => {
     const desc = a.dynamicDesc === 'md' ? `${esc(mdDisplay())}${state.form.md.email ? ', ' + esc(state.form.md.email) : ''}, entered a moment ago. You can change it per location later.` : esc(a.desc || '');
-    return `<label class="opt ${A.choice === a.id ? 'sel' : ''}" data-q="${id}" data-a="${a.id}"><div class="t">${esc(a.label)} ${a.rec ? '<span class="rec-txt">Recommended</span>' : ''}</div>${desc ? `<div class="d">${desc}</div>` : ''}${plumbChips(a.effects)}</label>`;
+    return `<label class="opt ${A.choice === a.id ? 'sel' : ''}" data-q="${id}" data-a="${a.id}"><div class="t">${esc(a.label)} ${a.rec ? '<span class="rec-pill">Recommended</span>' : ''}</div>${desc ? `<div class="d">${desc}</div>` : ''}${plumbChips(a.effects)}</label>`;
   }).join('');
   let extra = '';
   const chosen = Q.answers.find(a => a.id === A.choice);
   if (chosen && chosen.upsell) {
     const on = !!state.form.exams.quidgetReminder;
-    extra += `<div class="quidget"><div class="wp">W</div><div><div class="t">Have a WordPress website? Add telehealth to it with our Quidget plugin.</div><div class="d">Qualiphy's free WordPress plugin lets patients start a Good Faith Exam from any page of your site. You can set it up any time after this; the plugin key will be under Settings &rsaquo; API access.</div></div><div class="act">${on ? '<span class="added">&#10003; Added to your setup checklist</span>' : '<button class="btn lav sm" id="quidget-remind">Remind me after setup</button>'}</div></div>`;
+    extra += `<div class="quidget"><div class="wp">W</div><div><div class="t">Have a WordPress website? Add telehealth to it with our Quidget plugin.</div><div class="d">Qualiphy's free WordPress plugin lets patients start a Good Faith Exam from any page of your site. You can set it up any time after this; the plugin key will be under Settings &rsaquo; WordPress Quidget.</div></div><div class="act">${on ? '<span class="added">&#10003; Added to your setup checklist</span>' : '<button class="btn lav sm" id="quidget-remind">Remind me after setup</button>'}</div></div>`;
   }
-  if (chosen && chosen.fields) extra += `<div class="sub-block"><div class="grid ${chosen.fields.length > 2 ? 'three' : 'two'}">${chosen.fields.map(fl => `<div class="field"><label>${esc(fl)}</label><input data-q="${id}" data-field="${esc(fl)}" value="${esc(A.fields[fl] || '')}" /></div>`).join('')}</div>${Q.id === 'pharmacy' && A.choice === 'own' ? '<div class="note" style="margin-top:8px">Our Med Ops team will review this pharmacy before your first prescription. You will not get shipment tracking or delivery confirmation from Qualiphy for orders sent here.</div>' : ''}</div>`;
+  if (chosen && chosen.fields) extra += `<div class="wiz-sec"><div class="grid ${chosen.fields.length > 2 ? 'three' : 'two'}">${chosen.fields.map(fl => `<div class="field"><label>${esc(fl)}</label><input data-q="${id}" data-field="${esc(fl)}" value="${esc(A.fields[fl] || '')}" /></div>`).join('')}</div>${Q.id === 'pharmacy' && A.choice === 'own' ? '<div class="note muted small" style="margin-top:10px">Our Med Ops team will review this pharmacy before your first prescription. You will not get shipment tracking or delivery confirmation from Qualiphy for orders sent here.</div>' : ''}</div>`;
   const visible = A.choice ? Q.followups.filter(f => f.showIf.includes(A.choice)) : [];
   const toggles = visible.filter(f => f.type === 'toggle');
   const others = visible.filter(f => f.type !== 'toggle');
   if (toggles.length) {
-    const title = (Q.groupTitle && Q.groupTitle[A.choice]) || `Because you chose "${chosen ? chosen.label : ''}":`;
-    extra += `<div class="fu-group"><div class="fu-title">${esc(title)}</div>${toggles.map(f => { const on = A.fu[f.id] === undefined ? f.default : A.fu[f.id]; return `<label class="switch-row ${on ? 'on' : ''}"><div class="txt">${esc(f.label)}${plumbChips(f.effects[on ? 'on' : 'off'])}</div><div class="ctl"><span class="sw-lbl">${on ? 'Yes' : 'No'}</span><span class="switch ${on ? 'on' : ''}"><input type="checkbox" data-q="${id}" data-fu="${f.id}" ${on ? 'checked' : ''} /><span class="knob"></span></span></div></label>`; }).join('')}</div>`;
+    const title = (Q.groupTitle && Q.groupTitle[A.choice]) || `Because you chose "${chosen ? chosen.label : ''}"`;
+    const sub = (Q.groupSub && Q.groupSub[A.choice]) || '';
+    extra += `<div class="wiz-sec"><h3 class="wiz-h3">${esc(title)}</h3>${sub ? `<div class="wiz-h3sub">${esc(sub)}</div>` : ''}<div class="switch-list">${toggles.map(f => { const on = A.fu[f.id] === undefined ? f.default : A.fu[f.id]; return `<label class="switch-row ${on ? 'on' : ''}"><div class="txt">${esc(f.label)}${plumbChips(f.effects[on ? 'on' : 'off'])}</div><div class="ctl"><span class="switch ${on ? 'on' : ''}"><input type="checkbox" data-q="${id}" data-fu="${f.id}" ${on ? 'checked' : ''} /><span class="knob"></span></span><span class="sw-lbl">${on ? 'On' : 'Off'}</span></div></label>`; }).join('')}</div></div>`;
   }
   others.forEach(f => {
-    if (f.type === 'radio') { extra += `<div class="sub-block"><div class="lbl">${esc(f.label)}</div><div class="opts">${f.options.map(o => `<label class="opt ${A.fu[f.id] === o.id ? 'sel' : ''}" data-q="${id}" data-fu="${f.id}" data-o="${o.id}"><div class="t">${esc(o.label)} ${o.rec ? '<span class="rec-txt">Recommended</span>' : ''}</div>${o.desc ? `<div class="d">${esc(o.desc)}</div>` : ''}${plumbChips(o.effects)}</label>`).join('')}</div></div>`; }
-    else if (f.type === 'text') { extra += `<div class="sub-block"><div class="field"><label>${esc(f.label)}</label><input data-q="${id}" data-fu-text="${f.id}" value="${esc(A.fields[f.id] || '')}" placeholder="${esc(f.placeholder || '')}" /></div>${plumbChips(f.effects)}</div>`; }
-    else if (f.type === 'contacts') { const sel = A.fu[f.id] || {}; extra += `<div class="sub-block"><div class="lbl">${esc(f.label)}</div><div class="chips-pick">${f.roles.map(r => { const on = sel[r.id] === undefined ? r.default : sel[r.id]; return `<label class="chip-pick ${on ? 'on' : ''}"><input type="checkbox" data-q="${id}" data-role="${r.id}" data-fu="${f.id}" ${on ? 'checked' : ''} />${esc(r.label)}</label>`; }).join('')}</div>${plumbChips(f.effects)}</div>`; }
+    if (f.type === 'radio') { extra += `<div class="wiz-sec"><h3 class="wiz-h3">${esc(f.label)}</h3><div class="opts">${f.options.map(o => `<label class="opt ${A.fu[f.id] === o.id ? 'sel' : ''}" data-q="${id}" data-fu="${f.id}" data-o="${o.id}"><div class="t">${esc(o.label)} ${o.rec ? '<span class="rec-pill">Recommended</span>' : ''}</div>${o.desc ? `<div class="d">${esc(o.desc)}</div>` : ''}${plumbChips(o.effects)}</label>`).join('')}</div></div>`; }
+    else if (f.type === 'text') { extra += `<div class="wiz-sec"><div class="field"><label>${esc(f.label)}</label><input data-q="${id}" data-fu-text="${f.id}" value="${esc(A.fields[f.id] || '')}" placeholder="${esc(f.placeholder || '')}" /></div>${plumbChips(f.effects)}</div>`; }
+    else if (f.type === 'contacts') { const sel = A.fu[f.id] || {}; extra += `<div class="wiz-sec"><h3 class="wiz-h3">${esc(f.label)}</h3><div class="wiz-h3sub">Select everyone who should receive results and deferral notices.</div><div class="checks-row">${f.roles.map(r => { const on = sel[r.id] === undefined ? r.default : sel[r.id]; return `<label><input type="checkbox" data-q="${id}" data-role="${r.id}" data-fu="${f.id}" ${on ? 'checked' : ''} />${esc(r.label)}</label>`; }).join('')}</div>${plumbChips(f.effects)}</div>`; }
   });
-  const body = `${substeps}<h3 style="margin:0 0 4px;font-size:18px;font-weight:600">${esc(Q.title)}</h3><div class="muted" style="margin-bottom:14px">${esc(Q.help)}</div><div class="opts">${opts}</div>${extra}`;
+  const pageTitle = Q.pageTitle || Q.title; const pageSub = Q.pageSub || Q.help;
+  const body = `${Q.pageTitle ? `<h3 class="wiz-h3">${esc(Q.title)}</h3>` : ''}<div class="opts">${opts}</div>${extra}`;
   const last = state.sub === ids.length - 1;
-  return card('Step 6 of 8', 'A few questions to set up your account', 'We pre-filled the usual choice. Change anything you like; everything is editable later in Settings.', body,
-    `<div class="card-f"><div class="left"><button class="btn" id="btn-back">Back</button><button class="link" id="btn-skip">Skip for now</button></div><button class="btn primary" id="btn-next" ${A.choice ? '' : 'disabled'}>${last ? 'Continue' : 'Next'}</button></div>`);
+  return card('', esc(pageTitle), esc(pageSub), body, footer(last ? 'Continue' : 'Next', !!A.choice, '<button class="link" id="btn-skip">Skip for now</button>', 'Pick an option to continue'));
 };
 
 R.exams = () => {
-  const sel = state.form.exams.services;
-  return card('Step 7 of 8', 'Which services do you offer?', 'We will activate the matching exams as your favorites so they are ready on day one. You can change this any time in Exams.',
+  const sel = state.form.exams.services; const count = SERVICES.filter(s => sel.includes(s.id)).flatMap(s => s.exams).length;
+  return card('', 'Which services do you offer?', 'We activate the matching exams as favorites so they are ready on day one. Change this any time in Exams.',
     `<div class="services">${SERVICES.map(s => { const locked = s.rx && !isRx(); const on = sel.includes(s.id); return `<label class="svc ${on ? 'sel' : ''} ${locked ? 'locked' : ''}"><input type="checkbox" data-svc="${s.id}" ${on ? 'checked' : ''} ${locked ? 'disabled' : ''} /><div><div class="t">${esc(s.label)}${locked ? ' <span class="badge muted">needs prescriptions</span>' : ''}</div><div class="d">${esc(s.exams.join(', '))}</div></div></label>`; }).join('')}</div>
-     <div class="muted small" style="margin-top:12px">${sel.length ? SERVICES.filter(s => sel.includes(s.id)).flatMap(s => s.exams).length + ' exams will be activated.' : 'Nothing selected yet. You can also skip and pick exams later.'}</div>
+     <div class="muted small" style="margin-top:16px">${sel.length ? count + ' exams will be activated.' : 'Nothing selected yet. You can also skip and pick exams later.'}</div>
      `,
     footer('Continue', true, '<button class="link" id="btn-skip-exams">Skip for now</button>'));
 };
 
-R.payment = () => card('Step 8 of 8', 'Add a payment method', 'You are billed per completed exam. Nothing is charged today.',
-  `<div class="cardmock">${state.form.payment.done ? '<div class="row spread"><div><div style="font-weight:600">Visa ending 4242</div><div class="muted small">Expires 12/28</div></div><span class="badge ok">On file</span></div>' : '<div class="grid two"><div class="field"><label>Card number</label><input placeholder="4242 4242 4242 4242" id="pm-num" /></div><div class="field"><label>Name on card</label><input placeholder="Dana Whitfield" /></div></div><div class="grid three" style="margin-top:14px"><div class="field"><label>Expiry</label><input placeholder="MM/YY" /></div><div class="field"><label>CVC</label><input placeholder="123" /></div><div class="field"><label>ZIP</label><input placeholder="75034" /></div></div><div style="margin-top:14px"><button class="btn primary sm" id="btn-pay">Save card</button> <span class="muted small">Demo: nothing is sent anywhere.</span></div>'}</div>
+R.payment = () => card('', 'Add a payment method', 'You are billed per completed exam. Nothing is charged today.',
+  `<div class="cardmock">${state.form.payment.done ? '<div class="row spread"><div><div style="font-weight:600">Visa ending 4242</div><div class="muted small">Expires 12/28</div></div><span class="status-pill ok">On file</span></div>' : '<div class="grid two"><div class="field"><label>Card number</label><input placeholder="4242 4242 4242 4242" id="pm-num" /></div><div class="field"><label>Name on card</label><input placeholder="Dana Whitfield" /></div></div><div class="grid three" style="margin-top:16px"><div class="field"><label>Expiry</label><input placeholder="MM/YY" /></div><div class="field"><label>CVC</label><input placeholder="123" /></div><div class="field"><label>ZIP</label><input placeholder="75034" /></div></div><div class="row" style="margin-top:18px"><button class="btn primary sm" id="btn-pay">Save card</button><span class="muted small">Demo: nothing is sent anywhere.</span></div>'}</div>
    `,
-  footer('Finish setup', stepValid('payment')));
+  footer('Finish setup', stepValid('payment'), '', 'Save a card to finish setup'));
 
 function renderSignup() {
   const s = STEPS[state.step];
   if (s.kind === 'account') return `<div class="wrap">${R.account()}</div>`;
-  return `<div class="wrap">${stepper()}${R[s.kind]()}</div>`;
+  wizFoot = '';
+  const body = R[s.kind]();
+  const name = state.form.clinic.practice || 'Clinic setup';
+  return `<div class="wiz">${wizSide()}<div class="wiz-main"><header class="wiz-top"><div class="wiz-name">${esc(name)}</div><button class="link purple nou" id="wiz-save" title="Progress is saved automatically in this demo">Save &amp; exit</button></header><div class="wiz-body"><div class="wiz-inner">${body}</div></div><footer class="wiz-foot">${wizFoot}</footer></div></div>`;
 }
 
 /* ---------- portal (after the wizard) ---------- */
@@ -621,7 +642,8 @@ function buildExport() { return ''; }
 function render() {
   document.querySelectorAll('.pb[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === state.view || (b.dataset.view === 'signup' && state.view === 'portal')));
   $('#toggle-plumbing').checked = state.showPlumbing;
-  const tb = $('#topbar'); tb.classList.toggle('portal-bar', state.view === 'portal'); tb.hidden = state.view === 'signup' && STEPS[state.step].kind === 'account';
+  const tb = $('#topbar'); tb.classList.toggle('portal-bar', state.view === 'portal'); tb.hidden = state.view === 'signup';
+  document.body.classList.toggle('wiz-mode', state.view === 'signup' && STEPS[state.step].kind !== 'account');
   document.body.classList.toggle('lav', state.view === 'signup' && STEPS[state.step].kind === 'account');
   const pp = PORTAL_PAGES[state.portalPage] || PORTAL_PAGES.dashboard;
   $('#brand-page').textContent = state.view === 'portal' ? pp.title : state.view === 'signup' ? 'Clinic Signup' : 'Product';
