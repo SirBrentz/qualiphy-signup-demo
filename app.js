@@ -37,6 +37,9 @@ let state = {
   answers: {},
   settingsFilter: 'all',
   tour: { active: false, step: 0, done: false },
+  portalPage: 'dashboard',
+  settingsPanel: null,
+  showKey: false,
 };
 
 function load() {
@@ -54,10 +57,11 @@ function load() {
     if (typeof s.sub === 'number') state.sub = s.sub;
     if (s.view === 'portal') state.view = 'portal';
     if (s.tourDone) state.tour.done = true;
+    if (s.portalPage) state.portalPage = s.portalPage;
   } catch (e) { /* private mode / blocked storage - run from seed */ }
 }
 function save() {
-  try { sessionStorage.setItem(STORE_KEY, JSON.stringify({ qstate: state.qstate, order: state.order, form: state.form, answers: state.answers, showPlumbing: state.showPlumbing, step: state.step, sub: state.sub, view: state.view, tourDone: state.tour.done })); } catch (e) { /* ignore */ }
+  try { sessionStorage.setItem(STORE_KEY, JSON.stringify({ qstate: state.qstate, order: state.order, form: state.form, answers: state.answers, showPlumbing: state.showPlumbing, step: state.step, sub: state.sub, view: state.view, tourDone: state.tour.done, portalPage: state.portalPage })); } catch (e) { /* ignore */ }
 }
 
 
@@ -453,40 +457,131 @@ function renderSignup() {
 }
 
 /* ---------- portal (after the wizard) ---------- */
-function renderPortal() {
-  const f = state.form; const eff = computeEffects();
-  const blocked = eff.filter(e => e.status === 'blocked');
-  const pending = eff.filter(e => e.status === 'support' || e.status === 'handoff');
-  const items = [
+const PORTAL_PAGES = {
+  dashboard: { title: 'Dashboard', icon: 'dash' }, results: { title: 'Patient Exams', icon: 'clipboard' }, clinics: { title: 'Clinics', icon: 'home' },
+  managers: { title: 'Managers', icon: 'users' }, medication: { title: 'Medication Management', icon: 'pill' }, exams: { title: 'Exams', icon: 'clipboard' },
+  intake: { title: 'Intake Forms (Beta)', icon: 'file' }, rewards: { title: 'Rewards', icon: 'users' }, white: { title: 'White Label', icon: 'gear' }, settings: { title: 'Settings', icon: 'gear' },
+};
+function pluginKey() { const hx = s => hashStr(s).toString(16).padStart(8, '0'); const h1 = hx('key:' + (state.form.clinic.practice || 'clinic')), h2 = hx('key2:' + (state.form.account.email || 'x')), h3 = hx('key3:' + (state.form.clinic.zip || '0')); return (h1 + h2 + h3 + h1 + h2).slice(0, 40); }
+function activeExams() { return SERVICES.filter(s => state.form.exams.services.includes(s.id)).flatMap(s => s.exams.map(e => ({ name: e, service: s.label, rx: !!s.rx }))); }
+function wantsQuidget() { return !!state.form.exams.quidgetReminder || ans('workflow').choice === 'wordpress'; }
+
+function checklistItems() {
+  const f = state.form;
+  return [
     { t: 'Account and clinic details', d: f.clinic.practice || 'Practice details', done: true },
     { t: 'Terms of use accepted', d: 'Accepted during signup', done: true },
     { t: 'Medical director verified', d: f.md.verified ? `${mdDisplay()} · NPI ${f.md.npi}` : 'NPI not verified', done: !!f.md.verified },
     { t: 'Service agreement signed', d: isRx() ? 'GFE + prescriptions' : 'Good faith exams', done: f.agreement.signed },
     { t: 'Prescribing addendum countersigned', d: `Waiting on ${f.md.email || 'your medical director'} (QualiSign)`, done: false, warn: true, hide: !isRx() },
     { t: 'Patient care provider on file', d: (ans('pcp').choice === 'md') ? mdDisplay() : (ans('pcp').fields['Full name'] || 'Not set'), done: ans('pcp').choice === 'md' || !!ans('pcp').fields['Full name'] },
-    { t: 'Exams activated', d: f.exams.services.length ? `${SERVICES.filter(s => f.exams.services.includes(s.id)).flatMap(s => s.exams).length} favorites ready` : 'Pick the services you offer', done: f.exams.services.length > 0 },
+    { t: 'Exams activated', d: f.exams.services.length ? `${activeExams().length} favorites ready` : 'Pick the services you offer', done: f.exams.services.length > 0 },
     { t: 'Payment method', d: f.payment.done ? 'Visa ending 4242' : 'Add a card', done: f.payment.done },
-    { t: 'Install the Quidget WordPress plugin', d: 'Your plugin key is under Settings > API access. Install the plugin from your WordPress admin and paste the key.', done: false, hide: !(f.exams.quidgetReminder || ans('workflow').choice === 'wordpress') },
+    { t: 'Install the Quidget WordPress plugin', d: 'Settings > WordPress Quidget has your plugin key and the three install steps.', done: false, hide: !wantsQuidget(), page: 'settings', panel: 'quidget' },
     { t: 'Send your first exam', d: 'Invite a patient from Send exam, or use Connect Instantly in the room.', done: false, cta: true },
   ].filter(i => !i.hide);
+}
+
+function pageDashboard() {
+  const f = state.form; const eff = computeEffects();
+  const blocked = eff.filter(e => e.status === 'blocked');
+  const pending = eff.filter(e => e.status === 'support' || e.status === 'handoff');
+  const items = checklistItems();
   const doneCount = items.filter(i => i.done).length; const pct = Math.round(100 * doneCount / items.length);
   const next = items.find(i => !i.done && !i.warn);
   const written = eff.filter(e => e.status === 'written' && e.q !== 'Clinic' && e.q !== 'Payment'); const byLabel = {}; written.forEach(e => { byLabel[e.label] = e; });
   const setlist = Object.values(byLabel).slice(0, 12).map(e => `<div class="si"><span class="k">${esc(e.label)}</span><span class="v">${esc(e.value || '')}</span></div>`).join('');
-  const menu = [['Results', 'clipboard', true], ['Clinics', 'home'], ['Managers', 'users'], ['Medication Management', 'pill'], ['Exams', 'clipboard'], ['Intake Forms (Beta)', 'file'], ['Rewards', 'users'], ['White Label', 'gear'], ['Settings', 'gear']];
-  return `<div class="portal">
-    <aside class="sidemenu"><div class="logo-wrap"><img src="assets/logo_white.png" alt="Qualiphy" /></div><div class="dash"><span>Dashboard</span><span class="x">&times;</span></div>${menu.map(([l, i, act]) => `<a class="mi ${act ? 'active' : ''}" id="tour-${l.toLowerCase().split(' ')[0]}"><span class="ico">${ICONS[i]}</span>${esc(l)}</a>`).join('')}<a class="mi logout"><span class="ico">${ICONS.logout}</span>Logout</a></aside>
-    <div class="portal-body"><div class="portal-inner">
+  return `
       <div class="ph"><div><h1>Welcome, ${esc(firstName() || 'there')}</h1><div class="d">${esc(f.clinic.practice || 'Your clinic')} is set up. ${blocked.length ? `${blocked.length} item${blocked.length > 1 ? 's' : ''} still need${blocked.length > 1 ? '' : 's'} you.` : 'Here is what to do next.'}</div></div>
         <button class="btn primary ${next && next.cta ? 'pulse' : ''}">${ICONS.send} Send your first exam</button></div>
-      <div class="tiles"><div class="tile"><div class="k">Exams sent</div><div class="v">0</div></div><div class="tile"><div class="k">Setup</div><div class="v">${pct}%</div></div><div class="tile"><div class="k">Active exams</div><div class="v">${SERVICES.filter(s => f.exams.services.includes(s.id)).flatMap(s => s.exams).length}</div></div><div class="tile"><div class="k">With our team</div><div class="v">${pending.length}</div></div></div>
-      <div class="sec" id="tour-checklist"><div class="sec-h"><div><div class="t">Finish setting up your practice</div><div class="d">${doneCount} of ${items.length} steps complete. Everything stays visible in Settings; this just points you at what is next.</div></div>${next ? `<button class="btn primary sm ${next.cta ? 'pulse' : ''}">${next.cta ? 'Send your first exam' : 'Continue setup'}</button>` : ''}</div>
+      <div class="tiles"><div class="tile"><div class="k">Exams sent</div><div class="v">0</div></div><div class="tile"><div class="k">Setup</div><div class="v">${pct}%</div></div><div class="tile"><div class="k">Active exams</div><div class="v">${activeExams().length}</div></div><div class="tile"><div class="k">With our team</div><div class="v">${pending.length}</div></div></div>
+      ${wantsQuidget() ? `<div class="quidget"><div class="wp">W</div><div><div class="t">Set up the Qualiphy Quidget on your WordPress site</div><div class="d">Your plugin key is ready. Install the plugin, paste the key, and patients can start an exam from any page of your site.</div></div><div class="act"><button class="btn lav sm" id="quidget-open">Open WordPress Quidget settings</button></div></div>` : ''}
+      <div class="sec" id="tour-checklist"><div class="sec-h"><div><div class="t">Finish setting up your practice</div><div class="d">${doneCount} of ${items.length} steps complete. Everything stays visible in Settings; this just points you at what is next.</div></div>${next ? `<button class="btn primary sm ${next.cta ? 'pulse' : ''}" ${next.page ? `data-page="${next.page}" data-panel="${next.panel || ''}"` : ''}>${next.cta ? 'Send your first exam' : 'Continue setup'}</button>` : ''}</div>
         <div class="sec-b"><div class="progress"><div class="bar" style="width:${pct}%"></div></div>
-          <div class="cl">${items.map(i => `<div class="ci ${i.done ? 'done' : ''}"><div class="ic ${i.done ? 'done' : i.warn ? 'warn' : 'todo'}">${i.done ? '&#10003;' : i.warn ? '!' : ''}</div><div><div class="t">${esc(i.t)}${!i.done && next && next.t === i.t ? '<span class="next-pill">Next</span>' : ''}${i.warn ? '<span class="badge warn" style="margin-left:8px">Waiting on signature</span>' : ''}</div><div class="d">${esc(i.d)}</div></div></div>`).join('')}</div>
+          <div class="cl">${items.map(i => `<div class="ci ${i.done ? 'done' : ''} ${i.page ? 'go' : ''}" ${i.page ? `data-page="${i.page}" data-panel="${i.panel || ''}"` : ''}><div class="ic ${i.done ? 'done' : i.warn ? 'warn' : 'todo'}">${i.done ? '&#10003;' : i.warn ? '!' : ''}</div><div><div class="t">${esc(i.t)}${!i.done && next && next.t === i.t ? '<span class="next-pill">Next</span>' : ''}${i.warn ? '<span class="badge warn" style="margin-left:8px">Waiting on signature</span>' : ''}</div><div class="d">${esc(i.d)}</div></div></div>`).join('')}</div>
         </div></div>
-      <div class="sec"><div class="sec-h"><div><div class="t">What we set up for you</div><div class="d">From your answers. Change any of these in Settings.</div></div><button class="btn sm">Open Settings</button></div><div class="sec-b"><div class="setlist">${setlist || '<div class="muted">Nothing yet.</div>'}</div>${pending.length ? `<div class="callout info small" style="margin-top:14px"><strong>With our team:</strong> ${[...new Set(pending.map(p => p.label))].map(esc).join('; ')}. We will email you when these are done.</div>` : ''}</div></div>
+      <div class="sec"><div class="sec-h"><div><div class="t">What we set up for you</div><div class="d">From your answers. Change any of these in Settings.</div></div><button class="btn sm" data-page="settings">Open Settings</button></div><div class="sec-b"><div class="setlist">${setlist || '<div class="muted">Nothing yet.</div>'}</div>${pending.length ? `<div class="callout info small" style="margin-top:14px"><strong>With our team:</strong> ${[...new Set(pending.map(p => p.label))].map(esc).join('; ')}. We will email you when these are done.</div>` : ''}</div></div>
       
-      <div class="row"><button class="btn" id="btn-restart">Run the signup again</button><button class="link tip-link" id="tour-start">Show the quick tips again</button></div>
+      <div class="row"><button class="btn" id="btn-restart">Run the signup again</button><button class="link tip-link" id="tour-start">Show the quick tips again</button></div>`;
+}
+
+function pageResults() {
+  const f = state.form;
+  return `
+      <div class="ph"><div><h1>Patient Exams List</h1><div class="d">Note: if your patient is having issues connecting to a provider, please call (424) 257-3977 EXT: 2 for immediate assistance.</div></div><div class="field" style="width:260px"><label>Select Clinic:</label><select><option>${esc(f.clinic.practice || 'Your clinic')}</option></select></div></div>
+      <div class="sec"><div class="sec-b">
+        <div class="grid three"><div class="field"><label>Search:</label><input placeholder="Search" /></div><div class="field"><label>Sort By:</label><select><option>Select Sort By</option></select></div><div class="field"><label>Date Range:</label><input value="Sep 16, 2025 - Sep 16, 2026" readonly /></div></div>
+        <div style="overflow:auto;margin-top:16px"><table><thead><tr><th>ID</th><th>Patient Name</th><th>Exam Title</th><th>Status</th><th>Medication Information &amp; Tracking</th><th>Sent Date</th><th>Completed Date</th><th>Action</th></tr></thead><tbody><tr><td colspan="8"><div class="empty-state"><div class="ico">${ICONS.clipboard}</div><div class="t">No patient exams recorded</div><div class="d">Exams you send will appear here with their status and outcome.</div><button class="btn primary sm" style="margin-top:12px">${ICONS.send} Send Exam Invite</button></div></td></tr></tbody></table></div>
+      </div></div>`;
+}
+
+function pageExams() {
+  const list = activeExams();
+  return `
+      <div class="ph"><div><h1>Exams</h1><div class="d">Qualiphy templates activated for ${esc(state.form.clinic.practice || 'your clinic')} from the services you picked at signup.</div></div><button class="btn lav">Add Exam</button></div>
+      <div class="sec"><div class="sec-h"><div class="t">Qualiphy Templates</div><span class="muted small">${list.length} active</span></div>
+        <div style="overflow:auto"><table><thead><tr><th>Exam</th><th>Service</th><th>Type</th><th>Status</th><th>Action</th></tr></thead><tbody>${list.length ? list.map(e => `<tr><td>${esc(e.name)}</td><td>${esc(e.service)}</td><td>${e.rx ? 'Prescription' : 'Good faith exam'}</td><td><span class="badge ok">Active</span></td><td><button class="link">Deactivate</button></td></tr>`).join('') : '<tr><td colspan="5"><div class="empty-state"><div class="t">No exams activated yet</div><div class="d">Pick the services you offer to activate the matching exams.</div></div></td></tr>'}</tbody></table></div></div>`;
+}
+
+function pageClinics() {
+  const f = state.form; const pcp = ans('pcp').choice === 'md' ? mdDisplay() : (ans('pcp').fields['Full name'] || 'Not set');
+  return `
+      <div class="ph"><div><h1>Clinics</h1><div class="d">Practices and locations under this account.</div></div><button class="btn lav">${ICONS.home} Add Location</button></div>
+      <div class="sec"><div style="overflow:auto"><table><thead><tr><th>Name</th><th>Admin Email</th><th>Medical Director</th><th>Patient Care Provider</th><th>Actions</th></tr></thead><tbody>
+        <tr><td>${esc(f.clinic.practice || 'Your clinic')} <span class="badge purple" style="margin-left:6px">Default</span><div class="muted small">${esc([f.clinic.address1, f.clinic.city, f.clinic.state, f.clinic.zip].filter(Boolean).join(', '))}</div></td><td>${esc(f.account.email)}</td><td>${esc(mdDisplay())}${f.md.verified ? ' <span class="badge ok">NPI verified</span>' : ''}</td><td>${esc(pcp)}</td><td><button class="link">Edit</button></td></tr>
+      </tbody></table></div></div>
+      ${f.clinic.multi === 'many' ? '<div class="callout info small">You told us you have more than one location. Add each one here; every location signs its own agreement.</div>' : ''}`;
+}
+
+function pageSettings() {
+  const f = state.form; const key = pluginKey(); const shown = state.showKey; const panel = state.settingsPanel;
+  const A = ans('comms');
+  const toggles = q('comms').followups.filter(x => x.type === 'toggle');
+  const notif = `<div class="sec panel"><div class="sec-h"><div><div class="t">Notification Settings</div><div class="d">These are the choices you made at signup. Change them here any time.</div></div></div><div class="sec-b">
+      <div class="fu-group" style="margin-top:0"><div class="fu-title">Who sends patient messages</div>${q('comms').answers.map(o => `<label class="switch-row ${A.choice === o.id ? 'on' : ''}"><div class="txt">${esc(o.label)}</div><div class="ctl"><input type="radio" name="comms-choice" data-q="comms" data-a="${o.id}" ${A.choice === o.id ? 'checked' : ''} /></div></label>`).join('')}</div>
+      <div class="fu-group"><div class="fu-title">Patient communication</div>${toggles.map(t => { const on = A.fu[t.id] === undefined ? t.default : A.fu[t.id]; const applies = A.choice && t.showIf.includes(A.choice); return `<label class="switch-row ${on && applies ? 'on' : ''}" style="${applies ? '' : 'opacity:.5'}"><div class="txt">${esc(t.label)}</div><div class="ctl"><span class="sw-lbl">${on && applies ? 'Yes' : 'No'}</span><span class="switch ${on && applies ? 'on' : ''}"><input type="checkbox" data-q="comms" data-fu="${t.id}" ${on ? 'checked' : ''} ${applies ? '' : 'disabled'} /><span class="knob"></span></span></div></label>`; }).join('')}</div>
+    </div></div>`;
+  const wpq = `<div class="sec panel"><div class="sec-h"><div><div class="t">Qualiphy Quidget for WordPress</div><div class="d">Let patients start a Good Faith Exam from any page of your WordPress or WooCommerce site.</div></div><span class="wp" style="width:36px;height:36px;font-size:16px">W</span></div><div class="sec-b">
+      <ol class="steps-list">
+        <li><strong>Install the plugin.</strong> In your WordPress admin go to Plugins &rsaquo; Add New, search for <em>Qualiphy Quidget</em>, then Install and Activate.</li>
+        <li><strong>Paste your plugin key.</strong> Qualiphy &rsaquo; Settings inside WordPress asks for it once.
+          <div class="keybox" style="margin-top:8px"><code>${shown ? esc(key) : '&bull;'.repeat(28)}</code><button class="link purple key-toggle">${shown ? 'Hide' : 'Show'}</button><button class="link purple key-copy">Copy</button></div></li>
+        <li><strong>Choose the exams to offer.</strong> Your activated exams appear in the plugin; pick which ones patients can start from your site.
+          <div class="chips" style="margin-top:8px">${activeExams().slice(0, 8).map(e => `<span class="chip ok">${esc(e.name)}</span>`).join('') || '<span class="muted small">No exams activated yet.</span>'}</div></li>
+      </ol>
+      <div class="row" style="margin-top:8px"><a class="btn lav sm" href="https://wordpress.org/plugins/" target="_blank" rel="noopener">${ICONS.logout} Plugin guide</a><span class="muted small">Need a developer? Forward this page; the key is all they need.</span></div>
+    </div></div>`;
+  return `
+      <div class="set-col">
+        <div class="sec"><div class="sec-b">
+          <div style="font-weight:600;margin-bottom:10px">API Key (Default Clinic)</div>
+          <div class="keybox"><code>${shown ? esc(key) : '&bull;'.repeat(28)}</code><button class="link purple key-toggle">${shown ? 'Hide' : 'Show'}</button><button class="link purple key-copy">Copy</button></div>
+          <div style="margin-top:12px"><a class="link purple" href="#" onclick="return false">${ICONS.file} API Documentation</a><div class="muted small">Endpoints, request formats and webhook events for this key.</div></div>
+        </div></div>
+        <button class="set-btn ${panel === 'notif' ? 'open' : ''}" data-panel="notif">Notification Settings</button>
+        ${panel === 'notif' ? notif : ''}
+        <button class="set-btn ${panel === 'quidget' ? 'open' : ''}" data-panel="quidget"><span class="wp mini">W</span> WordPress Quidget</button>
+        ${panel === 'quidget' ? wpq : ''}
+        <button class="set-btn">Change Password</button>
+        <button class="set-btn filled">Change Email</button>
+        <button class="set-btn danger" id="set-logout">Logout</button>
+        
+      </div>`;
+}
+
+function pagePlaceholder(page) {
+  const p = PORTAL_PAGES[page];
+  return `<div class="ph"><div><h1>${esc(p.title)}</h1><div class="d">Not part of this demo. It looks and works as it does in the portal today.</div></div></div><div class="sec"><div class="sec-b"><div class="empty-state"><div class="t">${esc(p.title)}</div><div class="d">Unchanged by the setup wizard.</div></div></div></div>`;
+}
+
+function renderPortal() {
+  const page = PORTAL_PAGES[state.portalPage] ? state.portalPage : 'dashboard';
+  const menu = [['Results', 'clipboard', 'results'], ['Clinics', 'home', 'clinics'], ['Managers', 'users', 'managers'], ['Medication Management', 'pill', 'medication'], ['Exams', 'clipboard', 'exams'], ['Intake Forms (Beta)', 'file', 'intake'], ['Rewards', 'users', 'rewards'], ['White Label', 'gear', 'white'], ['Settings', 'gear', 'settings']];
+  const body = page === 'dashboard' ? pageDashboard() : page === 'results' ? pageResults() : page === 'exams' ? pageExams() : page === 'clinics' ? pageClinics() : page === 'settings' ? pageSettings() : pagePlaceholder(page);
+  return `<div class="portal">
+    <aside class="sidemenu"><div class="logo-wrap"><img src="assets/logo_white.png" alt="Qualiphy" /></div><a class="dash ${page === 'dashboard' ? 'active' : ''}" data-page="dashboard"><span>Dashboard</span><span class="x">&times;</span></a>${menu.map(([l, i, key]) => `<a class="mi ${page === key ? 'active' : ''}" id="tour-${key}" data-page="${key}"><span class="ico">${ICONS[i]}</span>${esc(l)}</a>`).join('')}<a class="mi logout" id="set-logout"><span class="ico">${ICONS.logout}</span>Logout</a></aside>
+    <div class="portal-body"><div class="portal-inner">
+      ${body}
     ${tourHtml()}
     </div></div>
   </div>`;
@@ -528,8 +623,9 @@ function render() {
   $('#toggle-plumbing').checked = state.showPlumbing;
   const tb = $('#topbar'); tb.classList.toggle('portal-bar', state.view === 'portal'); tb.hidden = state.view === 'signup' && STEPS[state.step].kind === 'account';
   document.body.classList.toggle('lav', state.view === 'signup' && STEPS[state.step].kind === 'account');
-  $('#brand-page').textContent = state.view === 'portal' ? 'Patient Exams' : state.view === 'signup' ? 'Clinic Signup' : 'Product';
-  $('#tb-icon').innerHTML = state.view === 'portal' ? ICONS.clipboard : ICONS.building;
+  const pp = PORTAL_PAGES[state.portalPage] || PORTAL_PAGES.dashboard;
+  $('#brand-page').textContent = state.view === 'portal' ? pp.title : state.view === 'signup' ? 'Clinic Signup' : 'Product';
+  $('#tb-icon').innerHTML = state.view === 'portal' ? ICONS[pp.icon] : ICONS.building;
   $('#topbar-right').innerHTML = state.view === 'portal' ? `<button class="btn lav" id="tour-send">${ICONS.send} Send Exam Invite</button>` : state.view === 'signup' ? `<button class="btn lav">${ICONS.logout} Logout</button>` : `<span class="muted small">Product views</span>`;
   const el = $('#page');
   if (state.view === 'signup') el.innerHTML = renderSignup();
@@ -557,10 +653,17 @@ document.addEventListener('click', e => {
   if (e.target.id === 'btn-sample') { fillSample(); state.view = 'signup'; state.step = STEPS.findIndex(s => s.kind === 'profile'); state.sub = 0; render(); window.scrollTo(0, 0); return; }
   if (e.target.id === 'btn-next') { next(); return; }
   if (e.target.id === 'btn-back') { back(); return; }
+  const nav = e.target.closest('[data-page]');
+  if (nav && state.view === 'portal' && !e.target.closest('.tour-card')) { state.portalPage = nav.dataset.page; state.settingsPanel = nav.dataset.panel || null; state.showKey = false; render(); window.scrollTo(0, 0); return; }
+  if (e.target.id === 'quidget-open') { state.portalPage = 'settings'; state.settingsPanel = 'quidget'; render(); window.scrollTo(0, 0); return; }
+  const sb = e.target.closest('.set-btn[data-panel]'); if (sb) { state.settingsPanel = state.settingsPanel === sb.dataset.panel ? null : sb.dataset.panel; render(); return; }
+  if (e.target.classList.contains('key-toggle')) { state.showKey = !state.showKey; render(); return; }
+  if (e.target.classList.contains('key-copy')) { try { navigator.clipboard.writeText(pluginKey()); } catch (x) {} e.target.textContent = 'Copied'; setTimeout(() => { e.target.textContent = 'Copy'; }, 1200); return; }
+  if (e.target.closest('#set-logout')) { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.view = 'signup'; state.step = 0; state.sub = 0; state.portalPage = 'dashboard'; render(); window.scrollTo(0, 0); return; }
   if (e.target.id === 'tour-next') { if (state.tour.step < TOUR.length - 1) { state.tour.step++; } else { state.tour = { active: false, step: 0, done: true }; } render(); return; }
   if (e.target.id === 'tour-skip') { state.tour = { active: false, step: 0, done: true }; render(); return; }
   if (e.target.id === 'tour-start') { state.tour = { active: true, step: 0, done: false }; render(); return; }
-  if (e.target.id === 'btn-restart') { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.view = 'signup'; state.step = 0; state.sub = 0; render(); window.scrollTo(0, 0); return; }
+  if (e.target.id === 'btn-restart') { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.view = 'signup'; state.step = 0; state.sub = 0; state.portalPage = 'dashboard'; render(); window.scrollTo(0, 0); return; }
   if (e.target.id === 'btn-skip') { const ids = activeQs(); const id = ids[state.sub]; if (id) { const A = ans(id); A.choice = null; A.seeded = false; } next(); return; }
   if (e.target.id === 'btn-skip-exams') { state.form.exams.services = []; next(); return; }
   if (e.target.id === 'btn-fill-account') { state.form.account.email = SAMPLE.admin.email; render(); return; }
@@ -585,6 +688,7 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'toggle-plumbing') { state.showPlumbing = t.checked; render(); return; }
   if (t.dataset.path && t.type === 'checkbox') { setPath(t.dataset.path, t.checked); render(); return; }
+  if (t.type === 'radio' && t.dataset.q && t.dataset.a) { const A = ans(t.dataset.q); A.choice = t.dataset.a; A.seeded = false; render(); return; }
   if (t.dataset.path && t.tagName === 'SELECT') { setPath(t.dataset.path, t.value); render(); return; }
   if (t.classList.contains('state') && t.dataset.qid) { state.qstate[t.dataset.qid] = t.value; state.sub = 0; render(); return; }
   if (t.dataset.svc) { const s = state.form.exams.services; const i = s.indexOf(t.dataset.svc); if (t.checked && i < 0) s.push(t.dataset.svc); if (!t.checked && i >= 0) s.splice(i, 1); render(); return; }
