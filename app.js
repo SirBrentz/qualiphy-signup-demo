@@ -1,7 +1,7 @@
 /* Qualiphy Clinic Signup mockup v2 - app shell
    No framework, no build step, no network. Open index.html and it runs. */
 
-const STORE_KEY = 'qualiphy-setup-wizard-mockup-v2';
+const STORE_KEY = 'qualiphy-setup-wizard-mockup-v3';
 
 /* ---------- state ---------- */
 function seedQState() { const s = {}; QUESTIONS.forEach(q => { s[q.id] = q.state; }); return s; }
@@ -11,7 +11,7 @@ function freshForm() {
     account: { email: '' },
     terms: { accepted: false },
     clinic: { practice: '', phone: '', address1: '', address2: '', city: '', state: '', zip: '', adminName: '', adminPhone: '', multi: 'one', addrQuery: '', addrPicked: false, addrManual: false },
-    md: { name: '', email: '', phone: '', npi: '', verified: null },
+    md: { name: '', email: '', phone: '', npi: '', verified: null, pending: false },
     agreement: { level: 'rx', signed: false },
     exams: { services: [], quidgetReminder: false },
     payment: { done: false, backup: false },
@@ -29,7 +29,7 @@ let state = {
     account: { email: '' },
     terms: { accepted: false },
     clinic: { practice: '', phone: '', address1: '', address2: '', city: '', state: '', zip: '', adminName: '', adminPhone: '', multi: 'one', addrQuery: '', addrPicked: false, addrManual: false },
-    md: { name: '', email: '', phone: '', npi: '', verified: null },
+    md: { name: '', email: '', phone: '', npi: '', verified: null, pending: false },
     agreement: { level: 'rx', signed: false },
     exams: { services: [], quidgetReminder: false },
     payment: { done: false, backup: false },
@@ -42,6 +42,8 @@ let state = {
   showKey: false,
   notifModal: false,
   notif: null,
+  termsModal: null,
+  returnToPortal: false,
 };
 
 function load() {
@@ -111,14 +113,42 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&a
 const q = id => QUESTIONS.find(x => x.id === id);
 const isRx = () => state.form.agreement.level === 'rx';
 const activeQs = () => state.order.filter(id => state.qstate[id] === 'v1' && (!q(id).onlyIf || (q(id).onlyIf === 'rx' && isRx())));
-const mdDisplay = () => state.form.md.name ? `Dr. ${state.form.md.name}` : 'your medical director';
+const mdDisplay = () => state.form.md.name && !state.form.md.pending ? `Dr. ${state.form.md.name}` : 'your medical director';
 function seedAnswer(id) {
-  const Q = q(id); const rec = Q.answers.find(a => a.rec);
-  const A = { choice: rec ? rec.id : null, fu: {}, fields: {}, seeded: true };
+  const Q = q(id); const recs = Q.answers.filter(a => a.rec);
+  const A = { choice: recs[0] ? recs[0].id : null, choices: recs.map(a => a.id), fu: {}, fields: {}, seeded: true };
   Q.followups.forEach(f => { if (f.type === 'radio') { const o = f.options.find(x => x.rec); if (o) A.fu[f.id] = o.id; } });
   return A;
 }
 const ans = id => state.answers[id] || (state.answers[id] = seedAnswer(id));
+const chosenIds = (Q, A) => Q.multi ? (A.choices || []) : (A.choice ? [A.choice] : []);
+const shows = (f, ids) => f.showIf.some(x => ids.includes(x)) && (!f.rxOnly || isRx());
+const togOn = (A, f) => A.fu[f.id] === undefined ? f.default : A.fu[f.id];
+
+/* ---------- team page state ---------- */
+const newPerson = (o = {}) => Object.assign({ name: '', email: '', phone: '', roles: {}, st: { approved: true, deferred: true, na: true } }, o);
+function seedTeam() {
+  const f = state.form; const c = f.clinic; const rx = isRx();
+  const people = [newPerson({ name: c.adminName || '', email: f.account.email || '', phone: c.adminPhone || '', roles: { updates: true, billing: true, tech: true, patient: rx } })];
+  if (f.md.name && !f.md.pending) people.push(newPerson({ name: f.md.name, email: f.md.email || '', phone: f.md.phone || '', roles: { rx } }));
+  else people[0].roles.rx = rx;
+  return people;
+}
+function team() { const A = ans('team'); if (!A.team) A.team = seedTeam(); return A.team; }
+const teamRoles = () => q('team').roles.filter(r => !r.rxOnly || isRx());
+const teamPeople = role => team().filter(p => p.roles[role] && (p.name || '').trim());
+const teamValid = () => teamRoles().filter(r => r.required).every(r => teamPeople(r.id).length > 0);
+function teamBlockedText() { const miss = teamRoles().filter(r => r.required && !teamPeople(r.id).length).map(r => r.label.toLowerCase()); return miss.length ? `Choose who handles ${miss.join(' and ')}` : ''; }
+function teamSummary() { return teamRoles().filter(r => r.required).map(r => `${r.label}: ${teamPeople(r.id).map(p => p.name).join(', ') || 'not set'}`).join(' · '); }
+function teamEffects(Q) {
+  const out = [];
+  teamRoles().forEach(r => {
+    const names = teamPeople(r.id).map(p => p.name);
+    r.effects.forEach((e, i) => out.push(Object.assign({ q: Q.short, status: names.length ? WHERE[e.where].status : (r.required ? 'blocked' : 'skipped'), value: i === 0 ? (names.join(', ') || 'nobody yet') : '' }, e)));
+  });
+  return out;
+}
+function emrState() { const A = ans('workflow'); return A.fu.emr || (A.fu.emr = { pick: null, other: [], otherText: '', q: '' }); }
 const whereBadge = w => `<span class="badge ${WHERE[w].cls}">${esc(WHERE[w].label)}</span>`;
 const whereChip = w => `<span class="chip ${WHERE[w].cls}">${esc(WHERE[w].label)}</span>`;
 function plumbChips(effects) {
@@ -151,23 +181,32 @@ function computeEffects() {
   out.push({ q: 'Agreement', label: 'Level of service (clinic_service GFE / RX / BOTH)', value: isRx() ? 'BOTH' : 'GFE', where: 'nowhere', status: 'engineering', via: 'set only by super-admin backoffice today' });
   out.push({ q: 'Agreement', label: 'Merged GFE/Rx service agreement (QualiSign)', value: f.agreement.signed ? 'signed' : 'unsigned', where: 'signup', status: f.agreement.signed ? 'written' : 'blocked', via: 'service agreement' });
   activeQs().forEach(id => {
-    const Q = q(id); const A = ans(id);
-    if (!A.choice) { out.push({ q: Q.short, label: Q.short, value: 'not answered', where: 'none', status: 'skipped', via: '' }); return; }
-    const opt = Q.answers.find(a => a.id === A.choice);
-    if (opt) opt.effects.forEach(e => out.push(Object.assign({ q: Q.short, status: WHERE[e.where].status }, e, { value: e.value === 'medical director' ? mdDisplay() : e.value })));
-    if (opt && opt.fields) opt.fields.forEach(fl => out.push({ q: Q.short, label: fl, value: A.fields[fl] || 'not provided', where: 'none', status: A.fields[fl] ? 'handoff' : 'skipped', via: 'captured for Med Ops' }));
+    const Q = q(id); const A = ans(id); const ids = chosenIds(Q, A);
+    if (Q.mode === 'team') { teamEffects(Q).forEach(e => out.push(e)); return; }
+    if (!ids.length) { out.push({ q: Q.short, label: Q.short, value: 'not answered', where: 'none', status: 'skipped', via: '' }); return; }
+    Q.answers.filter(o => ids.includes(o.id)).forEach(opt => {
+      opt.effects.forEach(e => out.push(Object.assign({ q: Q.short, status: WHERE[e.where].status }, e)));
+      if (opt.fields) opt.fields.forEach(fl => out.push({ q: Q.short, label: fl, value: A.fields[fl] || 'not provided', where: 'none', status: A.fields[fl] ? 'handoff' : 'skipped', via: 'captured for Med Ops' }));
+    });
     Q.followups.forEach(fu => {
-      if (!fu.showIf.includes(A.choice)) return;
-      if (fu.type === 'toggle') { const on = A.fu[fu.id] === undefined ? fu.default : A.fu[fu.id]; (fu.effects[on ? 'on' : 'off'] || []).forEach(e => out.push(Object.assign({ q: Q.short, status: WHERE[e.where].status }, e))); }
+      if (!shows(fu, ids)) return;
+      if (fu.type === 'toggle') {
+        const on = togOn(A, fu); (fu.effects[on ? 'on' : 'off'] || []).forEach(e => out.push(Object.assign({ q: Q.short, status: WHERE[e.where].status }, e)));
+        if (!on && fu.offTerms) { const ack = A.fu[fu.id + '_ack']; out.push({ q: Q.short, label: 'Responsibility accepted: ' + fu.label, value: ack ? 'accepted' : 'not accepted', where: 'nowhere', status: ack ? 'engineering' : 'blocked', via: 'no acceptance record today' }); }
+      }
       else if (fu.type === 'radio') { const o = fu.options.find(x => x.id === A.fu[fu.id]); if (o) o.effects.forEach(e => out.push(Object.assign({ q: Q.short, status: WHERE[e.where].status }, e))); else out.push({ q: Q.short, label: fu.label, value: 'not answered', where: 'none', status: 'skipped', via: '' }); }
       else if (fu.type === 'text') { const v = A.fields[fu.id]; fu.effects.forEach(e => out.push(Object.assign({ q: Q.short, status: v ? WHERE[e.where].status : 'skipped', value: v || 'not provided' }, e))); }
-      else if (fu.type === 'contacts') { const sel = fu.roles.filter(r => (A.fu[fu.id] || {})[r.id] === undefined ? r.default : A.fu[fu.id][r.id]); fu.effects.forEach((e, i) => out.push(Object.assign({ q: Q.short, status: sel.length ? WHERE[e.where].status : 'blocked', value: i === 0 ? (sel.map(r => r.label).join(', ') || 'none') : sel.length + ' roles' }, e))); }
+      else if (fu.type === 'emrpicker') {
+        const v = emrState(); const pick = EMRS.integrated.find(x => x.id === v.pick); const others = (v.other || []).concat(v.otherText ? [v.otherText] : []);
+        out.push(Object.assign({ q: Q.short, status: pick || others.length ? 'written' : 'skipped', value: pick ? pick.name : (others[0] || 'not chosen') }, fu.effects[0]));
+        if (others.length) out.push(Object.assign({ q: Q.short, status: 'engineering', value: others.join(', ') }, fu.effects[1]));
+      }
     });
   });
   const svcs = SERVICES.filter(s => f.exams.services.includes(s.id));
   out.push({ q: 'Exams', label: 'Activated exams (favorites by service)', value: svcs.length ? svcs.flatMap(s => s.exams).length + ' exams across ' + svcs.length + ' services' : 'none', where: 'portal', status: svcs.length ? 'written' : 'skipped', via: 'POST /admin_clinic_exam_hide (per exam)' });
   out.push({ q: 'Payment', label: 'Payment method on file', value: f.payment.done ? 'card ending 4242' : 'missing', where: 'signup', status: f.payment.done ? 'written' : 'blocked', via: '/clinic_save_card' });
-  out.push({ q: 'Payment', label: 'Backup payment method on file', value: f.payment.backup ? 'card ending 5555' : 'missing', where: 'nowhere', status: f.payment.backup ? 'engineering' : 'blocked', via: 'no second-card field today' });
+  out.push({ q: 'Payment', label: 'Backup payment method (optional)', value: f.payment.backup ? 'card ending 5555' : 'not added', where: 'nowhere', status: f.payment.backup ? 'engineering' : 'skipped', via: 'no second-card field today' });
   return out;
 }
 function statusBadge(s) {
@@ -176,6 +215,7 @@ function statusBadge(s) {
 }
 function allEffects(Q) {
   const out = []; Q.answers.forEach(a => out.push(...a.effects));
+  if (Q.roles) Q.roles.forEach(r => out.push(...r.effects));
   Q.followups.forEach(f => { if (f.type === 'toggle') out.push(...f.effects.on, ...f.effects.off); else if (f.type === 'radio') f.options.forEach(o => out.push(...o.effects)); else out.push(...f.effects); });
   return out;
 }
@@ -315,11 +355,11 @@ function stepValid(id) {
     case 'account': return /.+@.+\..+/.test(f.account.email);
     case 'terms': return f.terms.accepted;
     case 'clinic': return clinicSubValid(state.sub);
-    case 'md': return !!(f.md.name && /.+@.+\..+/.test(f.md.email) && f.md.verified === true);
+    case 'md': return !!f.md.pending || !!(f.md.name && /.+@.+\..+/.test(f.md.email) && f.md.verified === true);
     case 'agreement': return f.agreement.signed;
     case 'profile': return true;
     case 'exams': return true;
-    case 'payment': return f.payment.done && f.payment.backup;
+    case 'payment': return f.payment.done;
   }
   return true;
 }
@@ -402,73 +442,146 @@ R.clinic = () => {
 };
 
 R.md = () => {
-  const m = state.form.md;
+  const m = state.form.md; const pending = !!m.pending;
   let msg = '';
   if (m.npi && m.verified === true) { const r = npiLookup(m.npi).rec; msg = `<div class="msg ok">&#10003; Verified with MedPro: ${esc(r.name)}${r.credential ? ', ' + esc(r.credential) : ''}${r.taxonomy ? ' · ' + esc(r.taxonomy) : ''}${r.city ? ' · ' + esc(r.city) + ', ' + esc(r.state) : ''} · ${esc(r.status)}</div>`; }
   else if (m.npi && m.verified === false) { msg = `<div class="msg err">${esc(npiLookup(m.npi).reason || 'We could not verify this NPI.')} Check the number on <a href="https://npiregistry.cms.hhs.gov/" target="_blank" rel="noopener">npiregistry.cms.hhs.gov</a>.</div>`; }
   else if (m.npi) { msg = '<div class="msg wait">Enter all 10 digits and we will verify it.</div>'; }
-  return card('', 'Who is your medical director?', 'The physician who supervises care at your clinic. We verify the NPI with MedPro before you continue.',
-    `<div class="wiz-cols"><div>
-       <h3 class="wiz-h3">Medical director</h3>
+  const choice = `<div class="opts md-mode">
+      <label class="opt ${!pending ? 'sel' : ''}" data-md-mode="have"><div class="t">I have a medical director</div><div class="d">We verify their NPI with MedPro now.</div></label>
+      <label class="opt ${pending ? 'sel' : ''}" data-md-mode="pending"><div class="t">My medical director is pending</div><div class="d">Finish setting up now. You can't send exams until your medical director is added and verified.</div></label>
+    </div>`;
+  const fields = pending
+    ? `<div class="callout warn" style="margin-top:18px"><strong>Exam sending stays paused.</strong> You can finish setup and explore the portal. Add your medical director from the dashboard when they are ready, and we will verify them before you send your first exam.</div>`
+    : `<h3 class="wiz-h3" style="margin-top:26px">Medical director</h3>
        <div class="grid two">${field('Full name', 'md.name', { ph: 'First Last' })}${field('Email', 'md.email', { type: 'email', ph: 'name@clinic.com' })}</div>
        <div class="grid two" style="margin-top:16px">${field('Phone', 'md.phone', { ph: '(___) ___-____' })}${field('NPI number', 'md.npi', { max: 10, ph: '10 digits', err: m.verified === false, msg })}</div>
-       ${m.verified === false ? '<div class="callout warn" style="margin-top:16px"><strong>We could not verify this medical director.</strong> Setup cannot continue until the NPI matches an active record. If you are not sure who your medical director is, <button type="button" class="link purple nou" id="wiz-save-later">save and finish later</button>.</div>' : ''}
+       ${m.verified === false ? '<div class="callout warn" style="margin-top:16px"><strong>We could not verify this medical director.</strong> Setup cannot continue until the NPI matches an active record. If your medical director is not ready yet, choose "My medical director is pending" above, or <button type="button" class="link purple nou" id="wiz-save-later">save and finish later</button>.</div>' : ''}`;
+  return card('', 'Who is your medical director?', 'The physician who supervises care at your clinic. We verify the NPI with MedPro before you send exams.',
+    `<div class="wiz-cols"><div>
+       ${choice}${fields}
        
      </div>
-     <aside class="wiz-aside"><div class="ico">${ICONS.shield}</div><div class="t">Why we verify</div><div>Every exam is supervised by a licensed physician. We check the NPI with MedPro, the same verification our providers go through, so the medical director on file is real, licensed and active.</div></aside></div>`,
-    footer('Verify and continue', stepValid('md'), '<button class="link" id="btn-fill-md">Use sample</button>', m.verified === false ? 'Fix the NPI to continue' : 'Enter your medical director and NPI to continue'));
+     <aside class="wiz-aside"><div class="ico">${ICONS.shield}</div><div class="t">Why we verify</div><div>Every exam is supervised by a licensed physician. We check the NPI with MedPro, the same verification our providers go through, so the medical director on file is real, licensed and active.</div>
+       <div class="md-links"><a href="#" class="link purple nou" data-soon="blog">${ICONS.question}<span>Why do I need a medical director?</span></a><a href="#" class="link purple nou" data-soon="page">${ICONS.people}<span>Get a medical director</span></a></div></aside></div>`,
+    footer(pending ? 'Continue' : 'Verify and continue', stepValid('md'), pending ? '' : '<button class="link" id="btn-fill-md">Use sample</button>', m.verified === false ? 'Fix the NPI or choose pending to continue' : 'Enter your medical director and NPI to continue'));
 };
 
 R.agreement = () => {
-  const a = state.form.agreement; const admin = state.form.clinic.adminName || 'Account admin'; const practice = state.form.clinic.practice || 'your clinic';
-  const lvl = (id, ico, title, desc, bullets, rec) => `<div class="level ${a.level === id ? 'sel' : ''}" data-level="${id}"><div class="lv-top"><span class="lv-ico">${ico}</span>${rec ? '<span class="rec-pill">Recommended</span>' : ''}<span class="lv-radio"></span></div><div class="t">${title}</div><div class="d">${desc}</div><ul>${bullets.map(b => `<li>${b}</li>`).join('')}</ul></div>`;
-  return card('', 'Choose your level of service', 'One agreement covers your selected services.',
-    `<div class="levels">${lvl('gfe', ICONS.doc, 'Good faith exams', 'Medical clearance for your clinic', ['Async review or video visit', 'Results in your portal'])}${lvl('rx', ICONS.docPlus, 'Good faith exams + prescriptions', 'Adds the prescribing addendum to your agreement', ['Everything in Good faith exams', 'Partner pharmacy fulfillment'], true)}</div>
+  const a = state.form.agreement; const md = state.form.md; const admin = state.form.clinic.adminName || 'Account admin'; const practice = state.form.clinic.practice || 'your clinic';
+  const lvl = (id, ico, title, desc, bullets, rec) => `<div class="level ${a.level === id ? 'sel' : ''}" data-level="${id}"><div class="lv-top"><span class="lv-ico">${ico}</span>${rec ? '<span class="rec-pill">Recommended</span>' : ''}<span class="free-pill">No extra charge</span><span class="lv-radio"></span></div><div class="t">${title}</div><div class="d">${desc}</div><ul>${bullets.map(b => `<li>${b}</li>`).join('')}</ul></div>`;
+  const addendum = a.level !== 'rx' ? '' : md.pending
+    ? `<div class="doc"><span class="doc-ico">${ICONS.docPlus}</span><div><div class="t">Prescribing addendum</div><div class="d">Medical director pending</div></div><span class="status-pill muted">Sent once your medical director is added</span><span class="doc-acts"><button type="button" class="link nou">View details</button></span></div><div class="wiz-info">${ICONS.info}<span>Prescribing becomes available once your medical director is added, verified and has signed the addendum.</span></div>`
+    : `<div class="doc"><span class="doc-ico">${ICONS.docPlus}</span><div><div class="t">Prescribing addendum</div><div class="d">${esc(mdDisplay())} &middot; Medical director${a.signed ? ` &middot; emailed to ${esc(md.email || 'your medical director')}` : ''}</div></div><span class="status-pill muted">${a.signed ? 'Awaiting signature' : 'Sent after you sign'}</span><span class="doc-acts">${a.signed ? '<button type="button" class="link purple nou" id="md-link">Copy signing link</button>' : ''}<button type="button" class="link nou">View details</button></span></div><div class="wiz-info">${ICONS.info}<span>You can continue setup while your medical director signs. Prescribing becomes available once the addendum is signed. Agreement emails often land in spam, so you can also copy the signing link and send it by text or WhatsApp.</span></div>`;
+  return card('', 'Choose your level of service', 'There is no extra charge for either option. You only pay for completed exams. The difference is what our providers can do for your patients.',
+    `<div class="levels">${lvl('gfe', ICONS.doc, 'Good faith exams', 'Medical clearance before aesthetic, IV and wellness treatments', ['Async review or live video visit', 'Clearance and results in your portal', 'Injectables, lasers, IV therapy and more'])}${lvl('rx', ICONS.docPlus, 'Good faith exams + prescriptions', 'Everything in good faith exams, plus prescribing', ['Everything in Good faith exams', 'Prescription consultations for GLP-1s, peptides, hormones and more', 'Partner pharmacy fulfillment with shipment tracking', 'Adds the prescribing addendum to your agreement'], true)}</div>
      <div class="wiz-card sign-card"><h3 class="wiz-h3">Review and sign</h3>
        <div class="doc"><span class="doc-ico">${ICONS.doc}</span><div><div class="t">Service agreement</div><div class="d">${esc(admin)} &middot; ${esc(practice)}</div></div><span class="status-pill ok">${a.signed ? 'Signed' : 'Ready to sign'}</span>${a.signed ? `<div class="sigline">${esc(admin)}</div>` : '<button class="btn primary sm" id="btn-sign">Review &amp; sign</button>'}</div>
-       ${a.level === 'rx' ? `<div class="doc"><span class="doc-ico">${ICONS.docPlus}</span><div><div class="t">Prescribing addendum</div><div class="d">${esc(mdDisplay())} &middot; Medical director${a.signed ? ` &middot; emailed to ${esc(state.form.md.email || 'your medical director')}` : ''}</div></div><span class="status-pill muted">${a.signed ? 'Awaiting signature' : 'Sent after you sign'}</span><span class="doc-acts">${a.signed ? '<button type="button" class="link purple nou" id="md-link">Copy signing link</button>' : ''}<button type="button" class="link nou">View details</button></span></div><div class="wiz-info">${ICONS.info}<span>You can continue setup while your medical director signs. Prescribing becomes available once the addendum is signed. Agreement emails often land in spam, so you can also copy the signing link and send it by text or WhatsApp.</span></div>` : ''}
+       ${addendum}
        
      </div>`,
     footer('Continue', stepValid('agreement'), '', 'Sign the service agreement to continue'), { bare: true });
 };
 
+function toggleRow(qid, f, A) {
+  const on = togOn(A, f); const ack = A.fu[f.id + '_ack'];
+  const onL = f.yesNo ? 'Yes' : 'On', offL = f.yesNo ? 'No' : 'Off';
+  return `<div class="tg-row ${on ? 'on' : ''}">
+    <div class="tg-txt"><div class="tg-t">${esc(f.label)}</div>${f.desc ? `<div class="tg-d">${esc(f.desc)}</div>` : ''}
+      ${f.pros ? `<div class="pc"><div class="pro"><b>Pro</b><span>${esc(f.pros)}</span></div><div class="con"><b>Con</b><span>${esc(f.cons)}</span></div></div>` : ''}
+      ${!on && f.offTerms ? `<div class="tg-ack ${ack ? 'ok' : ''}">${ack ? ICONS.check + '<span>Your clinic accepted responsibility for this.</span>' : '<span>Responsibility terms not accepted yet.</span>'}<button type="button" class="link purple nou" data-terms="${qid}:${f.id}">View terms</button></div>` : ''}
+      ${plumbChips(f.effects[on ? 'on' : 'off'])}</div>
+    <label class="ctl"><span class="switch ${on ? 'on' : ''}"><input type="checkbox" data-q="${qid}" data-fu="${f.id}" ${on ? 'checked' : ''} aria-label="${esc(f.label)}" /><span class="knob"></span></span><span class="sw-lbl">${on ? onL : offL}</span></label>
+  </div>`;
+}
+function toggleSections(qid, Q, A) {
+  const ids = chosenIds(Q, A);
+  return (Q.sections || []).map(s => {
+    const rows = Q.followups.filter(f => f.type === 'toggle' && f.section === s.id && shows(f, ids));
+    if (!rows.length) return '';
+    return `<div class="wiz-card tg-card"><h3 class="wiz-h3">${esc(s.title)}</h3>${s.sub ? `<div class="wiz-h3sub">${esc(s.sub)}</div>` : ''}<div class="tg-list">${rows.map(f => toggleRow(qid, f, A)).join('')}</div></div>`;
+  }).join('');
+}
+function termsModalHtml() {
+  const tm = state.termsModal; if (!tm) return '';
+  const A = ans(tm.qid); const f = q(tm.qid).followups.find(x => x.id === tm.fid); if (!f) return '';
+  const accepted = togOn(A, f) === false && !!A.fu[f.id + '_ack'];
+  const acts = accepted
+    ? '<button type="button" class="btn" id="terms-keep">Turn it back on</button><button type="button" class="btn primary" id="terms-close">Close</button>'
+    : '<button type="button" class="btn" id="terms-keep">Keep it on</button><button type="button" class="btn primary" id="terms-accept">I understand and accept</button>';
+  return `<div class="wmodal-wrap" id="terms-wrap"><div class="wmodal" role="dialog" aria-modal="true" aria-labelledby="terms-title">
+    <div class="wm-h"><div class="wm-k">Terms of use</div><h3 id="terms-title">Before you turn off: ${esc(f.label)}</h3></div>
+    <div class="wm-b"><p>If this is off, your clinic is responsible for the following.</p><div class="wm-terms">${esc(f.offTerms)}</div><p class="muted small">We record who accepted this and when. You can turn it back on any time in Settings.</p></div>
+    <div class="wm-f">${acts}</div></div></div>`;
+}
+function teamBody() {
+  const people = team(); const roles = teamRoles();
+  const nm = (p, i) => (p.name || '').trim() || `Person ${i + 1}`;
+  const rows = people.map((p, i) => `<div class="cl-row"><div class="field"><label>Name</label><input data-team="${i}:name" value="${esc(p.name)}" placeholder="Full name" /></div><div class="field"><label>Email</label><input type="email" data-team="${i}:email" value="${esc(p.email)}" placeholder="name@clinic.com" /></div><div class="field"><label>Phone</label><input data-team="${i}:phone" value="${esc(p.phone)}" placeholder="(___) ___-____" /></div>${i > 0 ? `<button type="button" class="link cl-del" data-team-del="${i}" title="Remove ${esc(nm(p, i))}" aria-label="Remove ${esc(nm(p, i))}">&times;</button>` : '<span></span>'}</div>`).join('');
+  const roleRows = roles.map(r => {
+    const chips = people.map((p, i) => { const on = !!p.roles[r.id]; return `<button type="button" class="pchip ${on ? 'on' : ''}" data-team-role="${r.id}:${i}" aria-pressed="${on}">${on ? ICONS.check : ''}<span data-team-name="${i}">${esc(nm(p, i))}</span></button>`; }).join('');
+    const covered = teamPeople(r.id).length > 0;
+    let st = '';
+    if (r.statuses) {
+      const sel = people.map((p, i) => [p, i]).filter(([p]) => p.roles[r.id]);
+      if (sel.length) st = `<div class="st-legend">${r.statuses.map(s => `<div><b>${esc(s.label)}</b> ${esc(s.desc)}</div>`).join('')}</div>` + sel.map(([p, i]) => `<div class="st-row"><span class="st-name" data-team-name="${i}">${esc(nm(p, i))}</span><span class="st-sw">${r.statuses.map(s => { const on = p.st[s.id] !== false; return `<label class="mini-sw ${on ? 'on' : ''}"><input type="checkbox" data-team-st="${i}:${s.id}" ${on ? 'checked' : ''} /><span class="switch ${on ? 'on' : ''}"><span class="knob"></span></span>${esc(s.label)}</label>`; }).join('')}</span></div>`).join('');
+    }
+    return `<div class="role-row">
+      <div class="role-h"><div class="role-t">${esc(r.label)} ${r.required ? '<span class="rec-pill">Required</span>' : '<span class="opt-pill">Optional</span>'}</div>${r.required ? `<span class="cover ${covered ? 'ok' : 'warn'}">${covered ? 'Covered' : 'Choose someone'}</span>` : ''}</div>
+      <div class="role-d">${esc(r.desc)}</div>${r.tip ? `<div class="wiz-tip">${ICONS.info}<span>${esc(r.tip)}</span></div>` : ''}
+      <div class="pchips">${chips}</div>${st}
+      ${plumbChips(r.effects)}
+    </div>`;
+  }).join('');
+  return `<div class="wiz-card"><h3 class="wiz-h3">Your people</h3><div class="wiz-h3sub">Everyone we might contact. Add each person once.</div><div class="cl-list">${rows}</div>${people.length < 8 ? '<button type="button" class="btn lav sm" id="team-add">Add a person</button>' : ''}</div>
+    <div class="wiz-card" style="margin-top:20px"><h3 class="wiz-h3">Who handles what</h3><div class="wiz-h3sub">Tap a name to assign it. One person can cover several topics.</div>${roleRows}</div>`;
+}
+function emrOtherChips(v) {
+  const qv = (v.q || '').trim().toLowerCase();
+  const list = EMRS.other.filter(n => !qv || n.toLowerCase().includes(qv));
+  return list.map(n => { const on = v.other.includes(n); return `<button type="button" class="pchip ${on ? 'on' : ''}" data-emr-other="${esc(n)}" aria-pressed="${on}">${on ? ICONS.check : ''}${esc(n)}</button>`; }).join('') || '<span class="muted small">No match. Add it below.</span>';
+}
+function emrPicker(f) {
+  const v = emrState();
+  const tiles = EMRS.integrated.map(e => `<button type="button" class="emr-tile ${v.pick === e.id ? 'sel' : ''}" data-emr-pick="${e.id}" aria-pressed="${v.pick === e.id}"><span class="emr-logo" style="--tint:${e.tint}">${esc(e.mark)}</span><span class="emr-name">${esc(e.name)}</span>${e.soon ? '<span class="opt-pill">Coming soon</span>' : '<span class="emr-ok">Integrated</span>'}</button>`).join('');
+  const named = v.other.slice();
+  return `<div class="wiz-sec"><h3 class="wiz-h3">${esc(f.label)}</h3><div class="wiz-h3sub">Pick the system your clinic uses, and patients and results stay in sync with it.</div><div class="emr-grid">${tiles}</div>
+    <div class="emr-other"><h4>Use something else?</h4><div class="wiz-h3sub">We don't integrate with these yet. Tell us which one you use so we know what to build next.</div>
+      <div class="field addr-wrap emr-search"><span class="pin">${ICONS.search}</span><input id="emr-search" data-emr-q="1" value="${esc(v.q)}" placeholder="Search EMRs" autocomplete="off" aria-label="Search EMRs" /></div>
+      <div class="pchips" id="emr-other-list">${emrOtherChips(v)}</div>
+      <div class="field" style="margin-top:14px"><label for="emr-text">Not listed?</label><input id="emr-text" data-emr-text="1" value="${esc(v.otherText)}" placeholder="Type the name of your EMR" /></div>
+      ${named.length ? `<div class="wiz-info" style="margin-top:14px">${ICONS.info}<span>Thanks. You can send exams from the portal or connect with our API while we look at ${esc(named.join(', '))}.</span></div>` : ''}
+    </div>
+    ${plumbChips(f.effects)}</div>`;
+}
+
 R.profile = () => {
   const ids = activeQs();
   if (!ids.length) return card('', 'Setup questions', '', '<div class="empty">No questions are in v1. Add some in Questions.</div>', footer('Continue', true));
   if (state.sub >= ids.length) state.sub = ids.length - 1;
-  const id = ids[state.sub]; const Q = q(id); const A = ans(id);
-  const opts = Q.answers.map(a => {
-    const desc = a.dynamicDesc === 'md' ? `${esc(mdDisplay())}${state.form.md.email ? ', ' + esc(state.form.md.email) : ''}, entered a moment ago. You can change it per location later.` : esc(a.desc || '');
-    return `<label class="opt ${A.choice === a.id ? 'sel' : ''}" data-q="${id}" data-a="${a.id}"><div class="t">${esc(a.label)} ${a.rec ? '<span class="rec-pill">Recommended</span>' : ''}</div>${desc ? `<div class="d">${desc}</div>` : ''}${plumbChips(a.effects)}</label>`;
-  }).join('');
+  const id = ids[state.sub]; const Q = q(id); const A = ans(id); const last = state.sub === ids.length - 1;
+  const skip = '<button class="link" id="btn-skip">Skip for now</button>';
+  const why = state.showPlumbing ? `<details class="why"><summary>Why we ask</summary><p>${esc(Q.why)}</p>${Q.evidence ? `<p class="muted">Evidence: ${esc(Q.evidence)}</p>` : ''}</details>` : '';
+  if (Q.mode === 'toggles') return card('', esc(Q.pageTitle), esc(Q.pageSub), why + toggleSections(id, Q, A), footer(last ? 'Continue' : 'Next', true, skip), { bare: true });
+  if (Q.mode === 'team') return card('', esc(Q.pageTitle), esc(Q.pageSub), why + teamBody(), footer(last ? 'Continue' : 'Next', teamValid(), skip, teamBlockedText()), { bare: true });
+  const picked = chosenIds(Q, A);
+  const opts = Q.answers.map(o => `<label class="opt ${Q.multi ? 'multi' : ''} ${picked.includes(o.id) ? 'sel' : ''}" data-q="${id}" data-a="${o.id}"><div class="t">${esc(o.label)} ${o.rec ? '<span class="rec-pill">Recommended</span>' : ''}</div>${o.desc ? `<div class="d">${esc(o.desc)}</div>` : ''}${plumbChips(o.effects)}</label>`).join('');
+  const chosen = Q.answers.filter(o => picked.includes(o.id));
   let extra = '';
-  const chosen = Q.answers.find(a => a.id === A.choice);
-  if (chosen && chosen.upsell) {
+  if (picked.includes('wordpress')) {
+    extra += `<div class="quidget"><div class="wp">W</div><div><div class="t">We will set up your WordPress Quidget</div><div class="d">Your plugin key and install steps will be waiting under Settings &rsaquo; WordPress Quidget, and on your setup checklist.</div></div><div class="act"><span class="added">&#10003; On your setup checklist</span></div></div>`;
+  } else if (chosen.some(o => o.upsell)) {
     const on = !!state.form.exams.quidgetReminder;
     extra += `<div class="quidget"><div class="wp">W</div><div><div class="t">Have a WordPress website? Add telehealth to it with our Quidget plugin.</div><div class="d">Qualiphy's free WordPress plugin lets patients start a Good Faith Exam from any page of your site. You can set it up any time after this; the plugin key will be under Settings &rsaquo; WordPress Quidget.</div></div><div class="act">${on ? '<span class="added">&#10003; Added to your setup checklist</span>' : '<button class="btn lav sm" id="quidget-remind">Remind me after setup</button>'}</div></div>`;
   }
-  if (chosen && chosen.fields) extra += `<div class="wiz-sec"><div class="grid ${chosen.fields.length > 2 ? 'three' : 'two'}">${chosen.fields.map(fl => `<div class="field"><label>${esc(fl)}</label><input data-q="${id}" data-field="${esc(fl)}" value="${esc(A.fields[fl] || '')}" /></div>`).join('')}</div>${Q.id === 'pharmacy' && A.choice === 'own' ? '<div class="note muted small" style="margin-top:10px">Our Med Ops team will review this pharmacy before your first prescription. You will not get shipment tracking or delivery confirmation from Qualiphy for orders sent here.</div>' : ''}</div>`;
-  const visible = A.choice ? Q.followups.filter(f => f.showIf.includes(A.choice)) : [];
-  const toggles = visible.filter(f => f.type === 'toggle');
-  const others = visible.filter(f => f.type !== 'toggle');
-  if (toggles.length) {
-    const title = (Q.groupTitle && Q.groupTitle[A.choice]) || `Because you chose "${chosen ? chosen.label : ''}"`;
-    const sub = (Q.groupSub && Q.groupSub[A.choice]) || '';
-    extra += `<div class="wiz-sec"><h3 class="wiz-h3">${esc(title)}</h3>${sub ? `<div class="wiz-h3sub">${esc(sub)}</div>` : ''}<div class="switch-list">${toggles.map(f => { const on = A.fu[f.id] === undefined ? f.default : A.fu[f.id]; return `<label class="switch-row ${on ? 'on' : ''}"><div class="txt">${esc(f.label)}${plumbChips(f.effects[on ? 'on' : 'off'])}</div><div class="ctl"><span class="switch ${on ? 'on' : ''}"><input type="checkbox" data-q="${id}" data-fu="${f.id}" ${on ? 'checked' : ''} /><span class="knob"></span></span><span class="sw-lbl">${on ? 'On' : 'Off'}</span></div></label>`; }).join('')}</div></div>`;
-  }
-  others.forEach(f => {
-    if (f.type === 'radio') { extra += `<div class="wiz-sec"><h3 class="wiz-h3">${esc(f.label)}</h3><div class="opts">${f.options.map(o => `<label class="opt ${A.fu[f.id] === o.id ? 'sel' : ''}" data-q="${id}" data-fu="${f.id}" data-o="${o.id}"><div class="t">${esc(o.label)} ${o.rec ? '<span class="rec-pill">Recommended</span>' : ''}</div>${o.desc ? `<div class="d">${esc(o.desc)}</div>` : ''}${plumbChips(o.effects)}</label>`).join('')}</div></div>`; }
+  chosen.filter(o => o.fields).forEach(o => { extra += `<div class="wiz-sec"><div class="grid ${o.fields.length > 2 ? 'three' : 'two'}">${o.fields.map(fl => `<div class="field"><label>${esc(fl)}</label><input data-q="${id}" data-field="${esc(fl)}" value="${esc(A.fields[fl] || '')}" /></div>`).join('')}</div></div>`; });
+  Q.followups.filter(f => shows(f, picked)).forEach(f => {
+    if (f.type === 'emrpicker') extra += emrPicker(f);
+    else if (f.type === 'radio') { extra += `<div class="wiz-sec"><h3 class="wiz-h3">${esc(f.label)}</h3><div class="opts">${f.options.map(o => `<label class="opt ${A.fu[f.id] === o.id ? 'sel' : ''}" data-q="${id}" data-fu="${f.id}" data-o="${o.id}"><div class="t">${esc(o.label)} ${o.rec ? '<span class="rec-pill">Recommended</span>' : ''}</div>${o.desc ? `<div class="d">${esc(o.desc)}</div>` : ''}${plumbChips(o.effects)}</label>`).join('')}</div></div>`; }
     else if (f.type === 'text') { extra += `<div class="wiz-sec"><div class="field"><label>${esc(f.label)}</label><input data-q="${id}" data-fu-text="${f.id}" value="${esc(A.fields[f.id] || '')}" placeholder="${esc(f.placeholder || '')}" /></div>${plumbChips(f.effects)}</div>`; }
-    else if (f.type === 'contactlist') {
-      const list = A.fu[f.id] || (A.fu[f.id] = seedContacts());
-      extra += `<div class="wiz-sec"><h3 class="wiz-h3">${esc(f.label)}</h3>${f.tip ? `<div class="wiz-tip">${ICONS.info}<span>${esc(f.tip)}</span></div>` : ''}<div class="cl-list">${list.map((c, i) => `<div class="cl-row"><div class="field"><label>Name</label><input data-cl="${id}:${f.id}:${i}:name" value="${esc(c.name)}" placeholder="Full name" /></div><div class="field"><label>Email</label><input data-cl="${id}:${f.id}:${i}:email" value="${esc(c.email)}" placeholder="name@clinic.com" /></div><div class="field"><label>Phone</label><input data-cl="${id}:${f.id}:${i}:phone" value="${esc(c.phone)}" placeholder="(___) ___-____" /></div>${i > 0 ? `<button type="button" class="link cl-del" data-cl-del="${id}:${f.id}:${i}" title="Remove contact">&times;</button>` : '<span></span>'}</div>`).join('')}</div>${list.length < (f.max || 5) ? `<button type="button" class="btn lav sm" data-cl-add="${id}:${f.id}">Add another contact</button>` : ''}${plumbChips(f.effects)}</div>`;
-    }
-    else if (f.type === 'contacts') { const sel = A.fu[f.id] || {}; extra += `<div class="wiz-sec"><h3 class="wiz-h3">${esc(f.label)}</h3><div class="wiz-h3sub">Select everyone who should receive results and deferral notices.</div><div class="checks-row">${f.roles.map(r => { const on = sel[r.id] === undefined ? r.default : sel[r.id]; return `<label><input type="checkbox" data-q="${id}" data-role="${r.id}" data-fu="${f.id}" ${on ? 'checked' : ''} />${esc(r.label)}</label>`; }).join('')}</div>${plumbChips(f.effects)}</div>`; }
   });
-  const pageTitle = Q.pageTitle || Q.title; const pageSub = Q.pageSub || Q.help;
-  const body = `${Q.pageTitle ? `<h3 class="wiz-h3">${esc(Q.title)}</h3>` : ''}<div class="opts">${opts}</div>${Q.tip ? `<div class="wiz-tip" style="margin-top:14px">${ICONS.info}<span>${esc(Q.tip)}</span></div>` : ''}${extra}`;
-  const last = state.sub === ids.length - 1;
-  return card('', esc(pageTitle), esc(pageSub), body, footer(last ? 'Continue' : 'Next', !!A.choice, '<button class="link" id="btn-skip">Skip for now</button>', 'Pick an option to continue'));
+  const body = `${Q.pageTitle ? `<h3 class="wiz-h3">${esc(Q.title)}</h3>` : ''}${why}<div class="opts">${opts}</div>${Q.tip ? `<div class="wiz-tip" style="margin-top:14px">${ICONS.info}<span>${esc(Q.tip)}</span></div>` : ''}${extra}`;
+  return card('', esc(Q.pageTitle || Q.title), esc(Q.pageSub || Q.help), body, footer(last ? 'Continue' : 'Next', picked.length > 0, skip, Q.multi ? 'Choose at least one option to continue' : 'Pick an option to continue'));
 };
 
 R.exams = () => {
@@ -486,14 +599,15 @@ function payForm(prefix, btnId, btnLabel) {
 function paySaved(brand, last4, exp) { return `<div class="saved"><div><div style="font-weight:600">${brand} ending ${last4}</div><div class="muted small">Expires ${exp}</div></div><span class="status-pill ok">On file</span></div>`; }
 R.payment = () => {
   const p = state.form.payment;
-  return card('', 'Add your payment methods', 'You are billed per completed exam. Nothing is charged today. A backup card keeps exams running if the primary card fails.',
+  return card('', 'Add your payment method', 'No monthly fee, and nothing is charged today. You only pay for completed exams.',
     `<div class="pay-grid">
-       <div class="paycard"><h3 class="wiz-h3">Primary payment method</h3>${p.done ? paySaved('Visa', '4242', '12/28') : payForm('pm', 'btn-pay', 'Save card')}</div>
-       <div class="paycard"><h3 class="wiz-h3">Backup payment method <span class="rec-pill">Required</span></h3><div class="wiz-h3sub">Charged only if the primary card is declined, so patient exams never stop.</div>${p.backup ? paySaved('Mastercard', '5555', '08/29') : payForm('bk', 'btn-pay-backup', 'Save backup card')}</div>
+       <div class="paycard"><h3 class="wiz-h3">Primary payment method <span class="rec-pill">Required</span></h3><div class="wiz-h3sub">Charged only when an exam is completed.</div>${p.done ? paySaved('Visa', '4242', '12/28') : payForm('pm', 'btn-pay', 'Save card')}</div>
+       <div class="paycard"><h3 class="wiz-h3">Backup payment method <span class="opt-pill">Optional</span></h3><div class="wiz-h3sub">Recommended. Used only if your primary card is declined, so patient exams never stop.</div>${p.backup ? paySaved('Mastercard', '5555', '08/29') : payForm('bk', 'btn-pay-backup', 'Save backup card')}</div>
      </div>
+     <div class="wiz-info" style="margin-top:18px">${ICONS.info}<span>No subscription and no monthly charge. Each completed exam is billed at your clinic's rate.</span></div>
      
      `,
-    footer('Finish setup', stepValid('payment'), '', p.done ? 'Add a backup card to finish setup' : 'Save a primary and a backup card to finish setup'));
+    footer('Finish setup', stepValid('payment'), '', 'Save a card to finish setup'));
 };
 
 function renderSignup() {
@@ -502,7 +616,7 @@ function renderSignup() {
   wizFoot = '';
   const body = R[s.kind]();
   const name = state.form.clinic.practice || 'Clinic setup';
-  return `<div class="wiz">${wizSide()}<div class="wiz-main"><header class="wiz-top"><div class="wiz-name">${esc(name)}</div><button class="link purple nou" id="wiz-save" title="Progress is saved automatically in this demo">Save &amp; exit</button></header><div class="wiz-body"><div class="wiz-inner">${body}</div></div><footer class="wiz-foot">${wizFoot}</footer></div></div>`;
+  return `<div class="wiz">${wizSide()}<div class="wiz-main"><header class="wiz-top"><div class="wiz-name">${esc(name)}</div><button class="link purple nou" id="wiz-save" title="Progress is saved automatically in this demo">Save &amp; exit</button></header><div class="wiz-body"><div class="wiz-inner">${body}</div></div><footer class="wiz-foot">${wizFoot}</footer></div></div>${termsModalHtml()}`;
 }
 
 /* ---------- portal (after the wizard) ---------- */
@@ -513,19 +627,19 @@ const PORTAL_PAGES = {
 };
 function pluginKey() { const hx = s => hashStr(s).toString(16).padStart(8, '0'); const h1 = hx('key:' + (state.form.clinic.practice || 'clinic')), h2 = hx('key2:' + (state.form.account.email || 'x')), h3 = hx('key3:' + (state.form.clinic.zip || '0')); return (h1 + h2 + h3 + h1 + h2).slice(0, 40); }
 function activeExams() { return SERVICES.filter(s => state.form.exams.services.includes(s.id)).flatMap(s => s.exams.map(e => ({ name: e, service: s.label, rx: !!s.rx }))); }
-function wantsQuidget() { return !!state.form.exams.quidgetReminder || ans('workflow').choice === 'wordpress'; }
+function wantsQuidget() { return !!state.form.exams.quidgetReminder || (ans('workflow').choices || []).includes('wordpress'); }
 
 function checklistItems() {
   const f = state.form;
   return [
     { t: 'Account and clinic details', d: f.clinic.practice || 'Practice details', done: true },
     { t: 'Terms of use accepted', d: 'Accepted during signup', done: true },
-    { t: 'Medical director verified', d: f.md.verified ? `${mdDisplay()} · NPI ${f.md.npi}` : 'NPI not verified', done: !!f.md.verified },
+    { t: f.md.pending ? 'Add your medical director' : 'Medical director verified', d: f.md.pending ? 'Exam sending is paused until your medical director is added and verified.' : f.md.verified ? `${mdDisplay()} · NPI ${f.md.npi}` : 'NPI not verified', done: !f.md.pending && !!f.md.verified, warn: !!f.md.pending, act: f.md.pending ? '<button type="button" class="link purple nou md-add">Add medical director</button>' : '' },
     { t: 'Service agreement signed', d: isRx() ? 'GFE + prescriptions' : 'Good faith exams', done: f.agreement.signed },
-    { t: 'Prescribing addendum countersigned', d: `Waiting on ${f.md.email || 'your medical director'} (QualiSign). Emails often land in spam.`, act: '<button type="button" class="link purple nou" id="md-link">Copy signing link</button>', done: false, warn: true, hide: !isRx() },
-    { t: 'Patient care provider on file', d: (ans('pcp').choice === 'md') ? mdDisplay() : (ans('pcp').fields['Full name'] || 'Not set'), done: ans('pcp').choice === 'md' || !!ans('pcp').fields['Full name'] },
+    { t: 'Prescribing addendum countersigned', d: f.md.pending ? 'Sent to your medical director once they are added.' : `Waiting on ${f.md.email || 'your medical director'} (QualiSign). Emails often land in spam.`, act: f.md.pending ? '' : '<button type="button" class="link purple nou" id="md-link">Copy signing link</button>', done: false, warn: true, hide: !isRx() },
+    { t: 'Your team', d: teamSummary(), done: teamValid() },
     { t: 'Exams activated', d: f.exams.services.length ? `${activeExams().length} favorites ready` : 'Pick the services you offer', done: f.exams.services.length > 0 },
-    { t: 'Payment methods', d: f.payment.done && f.payment.backup ? 'Visa 4242 primary, Mastercard 5555 backup' : f.payment.done ? 'Backup card missing' : 'Add a card', done: f.payment.done && f.payment.backup },
+    { t: 'Payment method', d: f.payment.done ? (f.payment.backup ? 'Visa 4242, backup Mastercard 5555' : 'Visa 4242. Adding a backup card is recommended.') : 'Add a card', done: f.payment.done },
     { t: 'Install the Quidget WordPress plugin', d: 'Settings > WordPress Quidget opens the plugin site with the install steps.', done: false, hide: !wantsQuidget(), page: 'settings', panel: 'quidget' },
     { t: 'Send your first exam', d: 'Invite a patient from Send exam, or use Connect Instantly in the room.', done: false, cta: true },
   ].filter(i => !i.hide);
@@ -542,7 +656,8 @@ function pageDashboard() {
   const setlist = Object.values(byLabel).slice(0, 12).map(e => `<div class="si"><span class="k">${esc(e.label)}</span><span class="v">${esc(e.value || '')}</span></div>`).join('');
   return `
       <div class="ph"><div><h1>Welcome, ${esc(firstName() || 'there')}</h1><div class="d">${esc(f.clinic.practice || 'Your clinic')} is set up. ${blocked.length ? `${blocked.length} item${blocked.length > 1 ? 's' : ''} still need${blocked.length > 1 ? '' : 's'} you.` : 'Here is what to do next.'}</div></div>
-        <button class="btn primary ${next && next.cta ? 'pulse' : ''}">${ICONS.send} Send your first exam</button></div>
+        <button class="btn primary ${next && next.cta && !f.md.pending ? 'pulse' : ''} ${f.md.pending ? 'locked' : ''}" id="dash-send" ${f.md.pending ? 'aria-disabled="true" title="Add a verified medical director to send exams"' : ''}>${ICONS.send} Send your first exam</button></div>
+      ${f.md.pending ? `<div class="md-banner">${ICONS.info}<div><div class="t">Exam sending is paused</div><div class="d">Add your medical director so we can verify them. Until then you can explore the portal and finish the rest of setup.</div></div><button type="button" class="btn primary sm md-add">Add medical director</button></div>` : ''}
       <div class="tiles"><div class="tile"><div class="k">Exams sent</div><div class="v">0</div></div><div class="tile"><div class="k">Setup</div><div class="v">${pct}%</div></div><div class="tile"><div class="k">Active exams</div><div class="v">${activeExams().length}</div></div><div class="tile"><div class="k">With our team</div><div class="v">${pending.length}</div></div></div>
       ${wantsQuidget() ? `<div class="quidget"><div class="wp">W</div><div><div class="t">Set up the Qualiphy Quidget on your WordPress site</div><div class="d">Your plugin key is ready. Install the plugin, paste the key, and patients can start an exam from any page of your site.</div></div><div class="act"><button class="btn lav sm" id="quidget-open">Open WordPress Quidget</button></div></div>` : ''}
       <div class="sec" id="tour-checklist"><div class="sec-h"><div><div class="t">Finish setting up your practice</div><div class="d">${doneCount} of ${items.length} steps complete. Everything stays visible in Settings; this just points you at what is next.</div></div>${next ? `<button class="btn primary sm ${next.cta ? 'pulse' : ''}" ${next.page ? `data-page="${next.page}" data-panel="${next.panel || ''}"` : ''}>${next.cta ? 'Send your first exam' : 'Continue setup'}</button>` : ''}</div>
@@ -573,11 +688,11 @@ function pageExams() {
 }
 
 function pageClinics() {
-  const f = state.form; const pcp = ans('pcp').choice === 'md' ? mdDisplay() : (ans('pcp').fields['Full name'] || 'Not set');
+  const f = state.form; const pcpP = teamPeople('patient')[0]; const pcp = !isRx() ? 'Not needed (GFE only)' : pcpP ? pcpP.name : 'Not set';
   return `
       <div class="ph"><div><h1>Clinics</h1><div class="d">Practices and locations under this account.</div></div><button class="btn lav">${ICONS.home} Add Location</button></div>
       <div class="sec"><div style="overflow:auto"><table><thead><tr><th>Name</th><th>Admin Email</th><th>Medical Director</th><th>Patient Care Provider</th><th>Actions</th></tr></thead><tbody>
-        <tr><td>${esc(f.clinic.practice || 'Your clinic')} <span class="badge purple" style="margin-left:6px">Default</span><div class="muted small">${esc([f.clinic.address1, f.clinic.city, f.clinic.state, f.clinic.zip].filter(Boolean).join(', '))}</div></td><td>${esc(f.account.email)}</td><td>${esc(mdDisplay())}${f.md.verified ? ' <span class="badge ok">NPI verified</span>' : ''}</td><td>${esc(pcp)}</td><td><button class="link">Edit</button></td></tr>
+        <tr><td>${esc(f.clinic.practice || 'Your clinic')} <span class="badge purple" style="margin-left:6px">Default</span><div class="muted small">${esc([f.clinic.address1, f.clinic.city, f.clinic.state, f.clinic.zip].filter(Boolean).join(', '))}</div></td><td>${esc(f.account.email)}</td><td>${f.md.pending ? '<span class="badge warn">Pending</span>' : esc(mdDisplay()) + (f.md.verified ? ' <span class="badge ok">NPI verified</span>' : '')}</td><td>${esc(pcp)}</td><td><button class="link">Edit</button></td></tr>
       </tbody></table></div></div>
       ${f.clinic.multi === 'many' ? '<div class="callout info small">You told us you have more than one location. Add each one here; every location signs its own agreement.</div>' : ''}`;
 }
@@ -611,13 +726,13 @@ function seedContacts() {
   return [{ name: c.adminName || '', email: f.account.email || '', phone: c.adminPhone || '' }];
 }
 function seedNotif() {
-  const A = ans('comms'); const f = state.form;
-  const list = (Array.isArray(A.fu.contacts) ? A.fu.contacts : seedContacts()).filter(c => (c.name || c.email));
-  const contacts = list.map(c => { const [first, ...rest] = (c.name || '').trim().split(/\s+/); return { first: first || '', last: rest.join(' '), email: c.email || '', mobile: c.phone || '' }; });
-  const any = contacts.length > 0 && A.choice !== 'clinic';
-  const outreach = A.fu.outreach === undefined ? true : !!A.fu.outreach;
+  const A = ans('comms');
+  const split = n => { const [first, ...rest] = (n || '').replace(/^Dr\.\s*/, '').trim().split(/\s+/); return { first: first || '', last: rest.join(' ') }; };
+  const people = teamPeople('updates');
   const blank = () => [{ first: '', last: '', email: '', mobile: '' }];
-  return { approve: { value: any, contacts: any ? contacts.map(c => ({ ...c })) : blank() }, reject: { value: any, contacts: any ? contacts.map(c => ({ ...c })) : blank() }, na: { value: false, contacts: blank() }, pending: outreach };
+  const mk = s => { const c = people.filter(p => p.st[s] !== false).map(p => Object.assign(split(p.name), { email: p.email || '', mobile: p.phone || '' })); return { value: c.length > 0, contacts: c.length ? c : blank() }; };
+  const outreach = A.fu.outreach === undefined ? true : !!A.fu.outreach;
+  return { approve: mk('approved'), reject: mk('deferred'), na: mk('na'), pending: outreach };
 }
 function notifModalHtml() {
   const n = state.notif || (state.notif = seedNotif());
@@ -701,7 +816,7 @@ function render() {
   const pp = PORTAL_PAGES[state.portalPage] || PORTAL_PAGES.dashboard;
   $('#brand-page').textContent = state.view === 'portal' ? pp.title : state.view === 'signup' ? 'Clinic Signup' : 'Product';
   $('#tb-icon').innerHTML = state.view === 'portal' ? ICONS[pp.icon] : ICONS.building;
-  $('#topbar-right').innerHTML = state.view === 'portal' ? `<button class="btn lav" id="tour-send">${ICONS.send} Send Exam Invite</button>` : state.view === 'signup' ? `<button class="btn lav">${ICONS.logout} Logout</button>` : `<span class="muted small">Product views</span>`;
+  $('#topbar-right').innerHTML = state.view === 'portal' ? `<button class="btn lav ${state.form.md.pending ? 'locked' : ''}" id="tour-send" ${state.form.md.pending ? 'aria-disabled="true" title="Add a verified medical director to send exams"' : ''}>${ICONS.send} Send Exam Invite</button>` : state.view === 'signup' ? `<button class="btn lav">${ICONS.logout} Logout</button>` : `<span class="muted small">Product views</span>`;
   const el = $('#page');
   if (state.view === 'signup') el.innerHTML = renderSignup();
   else if (state.view === 'portal') { el.innerHTML = renderPortal(); requestAnimationFrame(positionTour); }
@@ -710,6 +825,7 @@ function render() {
 }
 function next() {
   const s = STEPS[state.step];
+  if (state.returnToPortal && s.kind === 'md') { state.returnToPortal = false; state.view = 'portal'; state.notif = null; render(); window.scrollTo(0, 0); if (!state.form.md.pending) toast('Medical director verified. You can send exams now.'); return; }
   if (s.kind === 'profile') { const ids = activeQs(); if (state.sub < ids.length - 1) { state.sub++; render(); window.scrollTo(0, 0); return; } }
   if (s.kind === 'clinic' && state.sub < CLINIC_SUBS - 1) { state.sub++; render(); window.scrollTo(0, 0); return; }
   if (state.step < STEPS.length - 1) { state.step++; state.sub = 0; render(); window.scrollTo(0, 0); }
@@ -731,6 +847,19 @@ document.addEventListener('click', e => {
   const nav = e.target.closest('[data-page]');
   if (nav && state.view === 'portal' && !e.target.closest('.tour-card')) { state.portalPage = nav.dataset.page; state.settingsPanel = nav.dataset.panel || null; state.showKey = false; render(); window.scrollTo(0, 0); return; }
   if (e.target.id === 'quidget-open') { state.portalPage = 'settings'; state.settingsPanel = 'quidget'; render(); window.scrollTo(0, 0); setTimeout(() => { state.settingsPanel = null; const b = $('#set-wpq'); if (b) b.classList.remove('hilite'); }, 2400); return; }
+  if (e.target.closest('#tour-send, #dash-send') && state.form.md.pending && !e.target.closest('.tour-card')) { toast('Add a verified medical director before sending exams.'); return; }
+  if (e.target.closest('.md-add')) { state.view = 'signup'; state.step = STEPS.findIndex(s => s.kind === 'md'); state.sub = 0; state.form.md.pending = false; state.returnToPortal = true; render(); window.scrollTo(0, 0); return; }
+  const mdm = e.target.closest('[data-md-mode]'); if (mdm) { state.form.md.pending = mdm.dataset.mdMode === 'pending'; render(); return; }
+  const soon = e.target.closest('[data-soon]'); if (soon) { e.preventDefault(); toast(soon.dataset.soon === 'blog' ? 'This will open our "Why do I need a medical director?" article.' : 'This will open our page on getting a medical director.'); return; }
+  const trm = e.target.closest('[data-terms]'); if (trm) { const [qid, fid] = trm.dataset.terms.split(':'); state.termsModal = { qid, fid }; render(); return; }
+  if (e.target.id === 'terms-accept') { const { qid, fid } = state.termsModal; const A = ans(qid); A.fu[fid] = false; A.fu[fid + '_ack'] = { by: state.form.clinic.adminName || state.form.account.email || 'clinic admin', at: new Date().toISOString() }; state.termsModal = null; render(); return; }
+  if (e.target.id === 'terms-keep') { const { qid, fid } = state.termsModal; const A = ans(qid); A.fu[fid] = true; delete A.fu[fid + '_ack']; state.termsModal = null; render(); return; }
+  if (e.target.id === 'terms-close' || e.target.id === 'terms-wrap') { state.termsModal = null; render(); return; }
+  if (e.target.id === 'team-add') { team().push(newPerson()); render(); const el = document.querySelector(`[data-team="${team().length - 1}:name"]`); if (el) el.focus(); return; }
+  const tdel = e.target.closest('[data-team-del]'); if (tdel) { team().splice(+tdel.dataset.teamDel, 1); render(); return; }
+  const trole = e.target.closest('[data-team-role]'); if (trole) { const [r, k] = trole.dataset.teamRole.split(':'); const p = team()[+k]; if (p) p.roles[r] = !p.roles[r]; render(); return; }
+  const epick = e.target.closest('[data-emr-pick]'); if (epick) { const v = emrState(); v.pick = v.pick === epick.dataset.emrPick ? null : epick.dataset.emrPick; render(); return; }
+  const eoth = e.target.closest('[data-emr-other]'); if (eoth) { const v = emrState(); const n = eoth.dataset.emrOther; const k = v.other.indexOf(n); if (k < 0) v.other.push(n); else v.other.splice(k, 1); render(); const s = $('#emr-search'); if (s && v.q) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } return; }
   const cla = e.target.closest('[data-cl-add]'); if (cla) { const [qid, fid] = cla.dataset.clAdd.split(':'); const A = ans(qid); (A.fu[fid] || (A.fu[fid] = seedContacts())).push({ name: '', email: '', phone: '' }); render(); return; }
   const cld = e.target.closest('[data-cl-del]'); if (cld) { const [qid, fid, i] = cld.dataset.clDel.split(':'); ans(qid).fu[fid].splice(+i, 1); render(); return; }
   if (e.target.id === 'md-link') { try { navigator.clipboard.writeText('https://sign.qualiphy.me/demo/addendum'); } catch (x) {} toast('Signing link copied. Send it to your medical director by text or WhatsApp.'); return; }
@@ -743,12 +872,12 @@ document.addEventListener('click', e => {
   const sb = e.target.closest('.set-btn[data-panel]'); if (sb) { state.settingsPanel = state.settingsPanel === sb.dataset.panel ? null : sb.dataset.panel; render(); return; }
   const kc = e.target.closest('.key-copy'); if (kc) { try { navigator.clipboard.writeText(pluginKey()); } catch (x) {} toast('API Key (Default Clinic) copied to clipboard'); return; }
   const kt = e.target.closest('.key-toggle'); if (kt) { state.showKey = !state.showKey; render(); return; }
-  if (e.target.closest('#set-logout')) { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.view = 'signup'; state.step = 0; state.sub = 0; state.portalPage = 'dashboard'; render(); window.scrollTo(0, 0); return; }
+  if (e.target.closest('#set-logout')) { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.termsModal = null; state.returnToPortal = false; state.view = 'signup'; state.step = 0; state.sub = 0; state.portalPage = 'dashboard'; render(); window.scrollTo(0, 0); return; }
   if (e.target.id === 'tour-next') { if (state.tour.step < TOUR.length - 1) { state.tour.step++; } else { state.tour = { active: false, step: 0, done: true }; } render(); return; }
   if (e.target.id === 'tour-skip') { state.tour = { active: false, step: 0, done: true }; render(); return; }
   if (e.target.id === 'tour-start') { state.tour = { active: true, step: 0, done: false }; render(); return; }
-  if (e.target.id === 'btn-restart') { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.view = 'signup'; state.step = 0; state.sub = 0; state.portalPage = 'dashboard'; render(); window.scrollTo(0, 0); return; }
-  if (e.target.id === 'btn-skip') { const ids = activeQs(); const id = ids[state.sub]; if (id) { const A = ans(id); A.choice = null; A.seeded = false; } next(); return; }
+  if (e.target.id === 'btn-restart') { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.termsModal = null; state.returnToPortal = false; state.view = 'signup'; state.step = 0; state.sub = 0; state.portalPage = 'dashboard'; render(); window.scrollTo(0, 0); return; }
+  if (e.target.id === 'btn-skip') { const ids = activeQs(); const id = ids[state.sub]; if (id && !q(id).mode) { const A = ans(id); A.choice = null; A.choices = []; A.seeded = false; } next(); return; }
   if (e.target.id === 'btn-skip-exams') { state.form.exams.services = []; next(); return; }
   if (e.target.id === 'btn-fill-account') { state.form.account.email = SAMPLE.admin.email; render(); return; }
   if (e.target.id === 'btn-fill-clinic') { Object.assign(state.form.clinic, { practice: SAMPLE.practice, phone: SAMPLE.phone, address1: SAMPLE.address1, city: SAMPLE.city, state: SAMPLE.state, zip: SAMPLE.zip, adminName: SAMPLE.admin.first + ' ' + SAMPLE.admin.last, adminPhone: SAMPLE.phone, addrPicked: true, addrQuery: SAMPLE.address1 }); render(); return; }
@@ -766,7 +895,7 @@ document.addEventListener('click', e => {
   const rd = e.target.closest('[data-radio]'); if (rd) { setPath(rd.dataset.radio, rd.dataset.val); render(); return; }
   const mv = e.target.closest('[data-move]'); if (mv) { const id = mv.dataset.move, d = +mv.dataset.dir; const i = state.order.indexOf(id); const j = i + d; if (j >= 0 && j < state.order.length) { state.order.splice(i, 1); state.order.splice(j, 0, id); } render(); return; }
   const fl = e.target.closest('[data-filter]'); if (fl) { state.settingsFilter = fl.dataset.filter; render(); return; }
-  const opt = e.target.closest('.opt[data-q]'); if (opt && !e.target.matches('input')) { const A = ans(opt.dataset.q); if (opt.dataset.o) A.fu[opt.dataset.fu] = opt.dataset.o; else if (opt.dataset.a) { A.choice = opt.dataset.a; A.seeded = false; } render(); return; }
+  const opt = e.target.closest('.opt[data-q]'); if (opt && !e.target.matches('input')) { const A = ans(opt.dataset.q); if (opt.dataset.o) A.fu[opt.dataset.fu] = opt.dataset.o; else if (opt.dataset.a) { if (q(opt.dataset.q).multi) { const s = A.choices || (A.choices = []); const k = s.indexOf(opt.dataset.a); if (k < 0) s.push(opt.dataset.a); else s.splice(k, 1); A.choice = s[0] || null; } else { A.choice = opt.dataset.a; } A.seeded = false; } render(); return; }
 });
 
 document.addEventListener('change', e => {
@@ -780,12 +909,16 @@ document.addEventListener('change', e => {
   if (t.classList.contains('state') && t.dataset.qid) { state.qstate[t.dataset.qid] = t.value; state.sub = 0; render(); return; }
   if (t.dataset.svc) { const s = state.form.exams.services; const i = s.indexOf(t.dataset.svc); if (t.checked && i < 0) s.push(t.dataset.svc); if (!t.checked && i >= 0) s.splice(i, 1); render(); return; }
   if (t.dataset.role) { const A = ans(t.dataset.q); A.fu[t.dataset.fu] = A.fu[t.dataset.fu] || {}; A.fu[t.dataset.fu][t.dataset.role] = t.checked; render(); return; }
-  if (t.dataset.fu && t.type === 'checkbox') { ans(t.dataset.q).fu[t.dataset.fu] = t.checked; render(); return; }
+  if (t.dataset.teamSt) { const [k, s] = t.dataset.teamSt.split(':'); const p = team()[+k]; if (p) p.st[s] = t.checked; render(); return; }
+  if (t.dataset.fu && t.type === 'checkbox') { const Q = q(t.dataset.q); const f = Q && Q.followups.find(x => x.id === t.dataset.fu); const A = ans(t.dataset.q); if (f && f.offTerms && !t.checked) { t.checked = true; state.termsModal = { qid: t.dataset.q, fid: f.id }; render(); return; } A.fu[t.dataset.fu] = t.checked; if (t.checked) delete A.fu[t.dataset.fu + '_ack']; render(); return; }
 });
 
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset.addr) { state.form.clinic.addrQuery = t.value; save(); suggestFor(t.value); return; }
+  if (t.dataset.team) { const [k, fld] = t.dataset.team.split(':'); const p = team()[+k]; if (p) { p[fld] = t.value; if (fld === 'name') document.querySelectorAll(`[data-team-name="${k}"]`).forEach(el => { el.textContent = t.value.trim() || `Person ${+k + 1}`; }); const ok = teamValid(); const b = $('#btn-next'); if (b) b.disabled = !ok; const st = document.querySelector('.wiz-status'); if (st) st.textContent = ok ? 'Changes saved' : teamBlockedText(); save(); } return; }
+  if (t.dataset.emrQ) { const v = emrState(); v.q = t.value; const box = $('#emr-other-list'); if (box) box.innerHTML = emrOtherChips(v); save(); return; }
+  if (t.dataset.emrText) { emrState().otherText = t.value; save(); return; }
   if (t.dataset.cl) { const [qid, fid, i, k] = t.dataset.cl.split(':'); const A = ans(qid); if (A.fu[fid] && A.fu[fid][+i]) { A.fu[fid][+i][k] = t.value; save(); } return; }
   if (t.dataset.path) {
     let v = t.value; if (t.dataset.path === 'clinic.state') v = v.toUpperCase().slice(0, 2); if (t.dataset.path === 'md.npi') v = v.replace(/\D/g, '').slice(0, 10);
@@ -803,7 +936,7 @@ function fillSample() {
   state.form.account.email = SAMPLE.admin.email;
   state.form.terms.accepted = false;   /* the clinic must tick this themselves */
   Object.assign(state.form.clinic, { practice: SAMPLE.practice, phone: SAMPLE.phone, address1: SAMPLE.address1, city: SAMPLE.city, state: SAMPLE.state, zip: SAMPLE.zip, adminName: SAMPLE.admin.first + ' ' + SAMPLE.admin.last, adminPhone: SAMPLE.phone, multi: 'one', addrPicked: true, addrQuery: SAMPLE.address1 });
-  Object.assign(state.form.md, SAMPLE.md, { verified: true });
+  Object.assign(state.form.md, SAMPLE.md, { verified: true, pending: false });
   state.form.agreement = { level: 'rx', signed: true };
 }
 
