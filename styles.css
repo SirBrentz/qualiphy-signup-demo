@@ -538,8 +538,10 @@ body.wiz-mode .prodbar { left: auto; right: 24px; transform: none; bottom: auto;
 .cl-del { font-size: 24px; line-height: 1; color: var(--ink-40); height: 48px; text-decoration: none; }
 .cl-del:hover { color: var(--no); }
 @media (max-width: 760px) { .cl-row { grid-template-columns: 1fr; } }
-.pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
-@media (max-width: 900px) { .pay-grid { grid-template-columns: 1fr; } }
+.pay-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto; column-gap: 28px; row-gap: 0; }
+.paycard { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0; align-content: start; }
+@supports not (grid-template-rows: subgrid) { .paycard { display: block; grid-row: auto; } .paycard .wiz-h3sub { min-height: 44px; } }
+@media (max-width: 900px) { .pay-grid { grid-template-columns: 1fr; grid-template-rows: none; row-gap: 28px; } .paycard { display: block; grid-row: auto; } .paycard .wiz-h3sub { min-height: 0; } }
 .paycard .saved { display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid var(--wiz-line); border-radius: 10px; padding: 14px 16px; background: #fafaff; }
 .doc-acts { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .doc-acts .link { font-size: 14px; }

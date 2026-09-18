@@ -601,8 +601,8 @@ R.payment = () => {
   const p = state.form.payment;
   return card('', 'Add your payment method', 'No monthly fee, and nothing is charged today. You only pay for completed exams.',
     `<div class="pay-grid">
-       <div class="paycard"><h3 class="wiz-h3">Primary payment method <span class="rec-pill">Required</span></h3><div class="wiz-h3sub">Charged only when an exam is completed.</div>${p.done ? paySaved('Visa', '4242', '12/28') : payForm('pm', 'btn-pay', 'Save card')}</div>
-       <div class="paycard"><h3 class="wiz-h3">Backup payment method <span class="opt-pill">Optional</span></h3><div class="wiz-h3sub">Recommended. Used only if your primary card is declined, so patient exams never stop.</div>${p.backup ? paySaved('Mastercard', '5555', '08/29') : payForm('bk', 'btn-pay-backup', 'Save backup card')}</div>
+       <div class="paycard"><h3 class="wiz-h3">Primary payment method <span class="rec-pill">Required</span></h3><div class="wiz-h3sub">Charged only when an exam is completed.</div><div class="paybody">${p.done ? paySaved('Visa', '4242', '12/28') : payForm('pm', 'btn-pay', 'Save card')}</div></div>
+       <div class="paycard"><h3 class="wiz-h3">Backup payment method <span class="opt-pill">Optional</span></h3><div class="wiz-h3sub">Recommended. Used only if your primary card is declined, so patient exams never stop.</div><div class="paybody">${p.backup ? paySaved('Mastercard', '5555', '08/29') : payForm('bk', 'btn-pay-backup', 'Save backup card')}</div></div>
      </div>
      <div class="wiz-info" style="margin-top:18px">${ICONS.info}<span>No subscription and no monthly charge. Each completed exam is billed at your clinic's rate.</span></div>
      
