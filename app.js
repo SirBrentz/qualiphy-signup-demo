@@ -779,7 +779,7 @@ function renderPortal() {
 /* ---------- first-run tour (dashboard) ---------- */
 const TOUR = [
   { target: '#tour-send', place: 'below-right', k: 'Start here', t: 'Send your first exam invite', d: 'This button emails or texts a patient a link to their exam. They join from any device, and results land in Results.' },
-  { target: '#tour-checklist', place: 'below', k: 'Your setup', t: 'Anything still open is listed here', d: 'We configured most settings from your answers. Items with a Next tag are the ones to finish; nothing is hidden.' },
+  { target: '#tour-checklist', place: 'left', k: 'Your setup', t: 'Anything still open is listed here', d: 'We configured most settings from your answers. Items with a Next tag are the ones to finish; nothing is hidden.' },
   { target: '#tour-settings', place: 'right', k: 'Change anything', t: 'Everything we set up lives in Settings', d: 'Patient notifications, your patient care provider, pharmacy, integrations and your API key. Edit them any time.' },
   { target: '#tour-results', place: 'right', k: 'Results', t: 'Exams show up here as providers complete them', d: 'Approved, deferred or not applicable, with the provider note and any prescription details.' },
 ];
@@ -793,9 +793,14 @@ function positionTour() {
   const card = $('#tour-card'); if (!card) return;
   const s = TOUR[state.tour.step]; const el = document.querySelector(s.target); if (!el) return;
   el.classList.add('tour-hi'); el.scrollIntoView({ block: 'nearest' });
-  const r = el.getBoundingClientRect(); const cw = card.offsetWidth; const ch = card.offsetHeight;
+  const r = el.getBoundingClientRect(); let cw = card.offsetWidth; const ch = card.offsetHeight;
   let top, left;
   if (s.place === 'right') { top = r.top - 14; left = r.right + 16; }
+  else if (s.place === 'left') {
+    const room = r.left - 28;
+    if (room < cw) { card.style.width = Math.max(232, room) + 'px'; cw = card.offsetWidth; }
+    top = r.top - 14; left = r.left - cw - 16;
+  }
   else if (s.place === 'below-right') { top = r.bottom + 14; left = r.right - cw; }
   else { top = r.bottom + 14; left = r.left; }
   left = Math.max(12, Math.min(left, window.innerWidth - cw - 12)); top = Math.max(12, Math.min(top, window.innerHeight - ch - 12));

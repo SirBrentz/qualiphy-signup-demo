@@ -243,6 +243,7 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--purple);
 .tour-card::before { content: ""; position: absolute; width: 14px; height: 14px; background: #fff; border-left: 1px solid var(--line); border-top: 1px solid var(--line); transform: rotate(45deg); top: -8px; left: 28px; }
 .tour-card.below-right::before { left: auto; right: 28px; }
 .tour-card.right::before { top: 22px; left: -8px; transform: rotate(-45deg); }
+.tour-card.left::before { top: 22px; left: auto; right: -8px; transform: rotate(135deg); }
 .tip-link { font-size: 13px; }
 
 /* ---------- terms ---------- */
