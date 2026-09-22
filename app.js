@@ -1,16 +1,16 @@
 /* Qualiphy Clinic Signup mockup v2 - app shell
    No framework, no build step, no network. Open index.html and it runs. */
 
-const STORE_KEY = 'qualiphy-setup-wizard-mockup-v3';
+const STORE_KEY = 'qualiphy-setup-wizard-mockup-v4';
 
 /* ---------- state ---------- */
 function seedQState() { const s = {}; QUESTIONS.forEach(q => { s[q.id] = q.state; }); return s; }
 
 function freshForm() {
   return {
-    account: { email: '' },
+    account: { email: '', name: '', phone: '' },
     terms: { accepted: false },
-    clinic: { practice: '', phone: '', address1: '', address2: '', city: '', state: '', zip: '', adminName: '', adminPhone: '', multi: 'one', addrQuery: '', addrPicked: false, addrManual: false },
+    clinic: { practice: '', phone: '', address1: '', address2: '', city: '', state: '', zip: '', multi: 'one', addrQuery: '', addrPicked: false, addrManual: false },
     md: { name: '', email: '', phone: '', npi: '', verified: null, pending: false },
     agreement: { level: 'rx', signed: false },
     exams: { services: [], quidgetReminder: false },
@@ -24,11 +24,12 @@ let state = {
   qstate: seedQState(),
   order: QUESTIONS.map(q => q.id),
   step: 0,                 // index into STEPS
+  maxStep: 0,              // furthest step reached; sidebar steps up to here are clickable
   sub: 0,                  // sub-step inside 'profile'
   form: {                  // everything the clinic typed
-    account: { email: '' },
+    account: { email: '', name: '', phone: '' },
     terms: { accepted: false },
-    clinic: { practice: '', phone: '', address1: '', address2: '', city: '', state: '', zip: '', adminName: '', adminPhone: '', multi: 'one', addrQuery: '', addrPicked: false, addrManual: false },
+    clinic: { practice: '', phone: '', address1: '', address2: '', city: '', state: '', zip: '', multi: 'one', addrQuery: '', addrPicked: false, addrManual: false },
     md: { name: '', email: '', phone: '', npi: '', verified: null, pending: false },
     agreement: { level: 'rx', signed: false },
     exams: { services: [], quidgetReminder: false },
@@ -58,6 +59,7 @@ function load() {
     if (s.answers) state.answers = s.answers;
     if (typeof s.showPlumbing === 'boolean') state.showPlumbing = s.showPlumbing;
     if (typeof s.step === 'number') state.step = s.step;
+    state.maxStep = Math.max(typeof s.maxStep === 'number' ? s.maxStep : 0, state.step);
     if (typeof s.sub === 'number') state.sub = s.sub;
     if (s.view === 'portal') state.view = 'portal';
     if (s.tourDone) state.tour.done = true;
@@ -65,7 +67,7 @@ function load() {
   } catch (e) { /* private mode / blocked storage - run from seed */ }
 }
 function save() {
-  try { sessionStorage.setItem(STORE_KEY, JSON.stringify({ qstate: state.qstate, order: state.order, form: state.form, answers: state.answers, showPlumbing: state.showPlumbing, step: state.step, sub: state.sub, view: state.view, tourDone: state.tour.done, portalPage: state.portalPage })); } catch (e) { /* ignore */ }
+  try { sessionStorage.setItem(STORE_KEY, JSON.stringify({ qstate: state.qstate, order: state.order, form: state.form, answers: state.answers, showPlumbing: state.showPlumbing, step: state.step, maxStep: state.maxStep, sub: state.sub, view: state.view, tourDone: state.tour.done, portalPage: state.portalPage })); } catch (e) { /* ignore */ }
 }
 
 
@@ -126,11 +128,11 @@ const shows = (f, ids) => f.showIf.some(x => ids.includes(x)) && (!f.rxOnly || i
 const togOn = (A, f) => A.fu[f.id] === undefined ? f.default : A.fu[f.id];
 
 /* ---------- team page state ---------- */
-const newPerson = (o = {}) => Object.assign({ name: '', email: '', phone: '', roles: {}, st: { approved: true, deferred: true, na: true } }, o);
+const newPerson = (o = {}) => Object.assign({ name: '', email: '', phone: '', home: null, roles: {}, st: { approved: true, deferred: true, na: true } }, o);
 function seedTeam() {
-  const f = state.form; const c = f.clinic; const rx = isRx();
-  const people = [newPerson({ name: c.adminName || '', email: f.account.email || '', phone: c.adminPhone || '', roles: { updates: true, billing: true, tech: true, patient: rx } })];
-  if (f.md.name && !f.md.pending) people.push(newPerson({ name: f.md.name, email: f.md.email || '', phone: f.md.phone || '', roles: { rx } }));
+  const f = state.form; const rx = isRx();
+  const people = [newPerson({ name: f.account.name || '', email: f.account.email || '', phone: f.account.phone || '', you: true, roles: { updates: true, billing: true, tech: true, patient: rx } })];
+  if (f.md.name && !f.md.pending) people.push(newPerson({ name: f.md.name, email: f.md.email || '', phone: f.md.phone || '', md: true, roles: { rx } }));
   else people[0].roles.rx = rx;
   return people;
 }
@@ -221,11 +223,10 @@ function allEffects(Q) {
 }
 
 /* ---------- step validity ---------- */
-const CLINIC_SUBS = 3;
+const CLINIC_SUBS = 2;
 function clinicSubValid(sub) {
   const c = state.form.clinic;
   if (sub === 0) return !!(c.practice && c.address1 && c.city && c.state && c.zip);
-  if (sub === 1) return !!c.adminName;
   return true;
 }
 let lastSuggest = [];
@@ -352,7 +353,7 @@ function hi(text, qs) {
 function stepValid(id) {
   const f = state.form;
   switch (id) {
-    case 'account': return /.+@.+\..+/.test(f.account.email);
+    case 'account': return !!(f.account.name || '').trim() && /.+@.+\..+/.test(f.account.email);
     case 'terms': return f.terms.accepted;
     case 'clinic': return clinicSubValid(state.sub);
     case 'md': return !!f.md.pending || !!(f.md.name && /.+@.+\..+/.test(f.md.email) && f.md.verified === true);
@@ -366,7 +367,7 @@ function stepValid(id) {
 
 /* ---------- renderers ---------- */
 function wizSide() {
-  const items = STEPS.map((s, i) => { const st = i < state.step ? 'done' : i === state.step ? 'cur' : 'todo'; return `<div class="ws ${st}"><span class="dot">${st === 'done' ? ICONS.check : i + 1}</span><span class="lbl">${esc(s.label)}</span></div>`; }).join('');
+  const items = STEPS.map((s, i) => { const st = i === state.step ? 'cur' : i < state.maxStep ? 'done' : 'todo'; const inner = `<span class="dot">${st === 'done' ? ICONS.check : i + 1}</span><span class="lbl">${esc(s.label)}</span>`; return i <= state.maxStep && i !== state.step ? `<button type="button" class="ws ${st} go" data-step="${i}" title="Go to ${esc(s.label)}">${inner}</button>` : `<div class="ws ${st}"${st === 'cur' ? ' aria-current="step"' : ''}>${inner}</div>`; }).join('');
   return `<aside class="wiz-side"><div class="wiz-logo"><img src="assets/logo_black.png" alt="Qualiphy" /></div><div class="wiz-eyebrow">Clinic setup</div><nav class="wiz-steps">${items}</nav><div class="wiz-help"><span class="ico">${ICONS.help}</span><div><div class="q">Need a hand?</div><a href="#" onclick="return false">Contact support</a></div></div></aside>`;
 }
 function field(label, path, opts = {}) {
@@ -377,7 +378,7 @@ function selectField(label, path, options, ph) {
   const [g, k] = path.split('.'); const v = state.form[g][k];
   return `<div class="field"><label>${esc(label)}</label><select data-path="${path}"><option value="">${esc(ph || 'Select')}</option>${options.map(o => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
 }
-const firstName = () => (state.form.clinic.adminName || '').trim().split(/\s+/)[0] || '';
+const firstName = () => (state.form.account.name || '').trim().split(/\s+/)[0] || '';
 let wizFoot = '';
 function footer(nextLabel, canNext, extraLeft = '', blocked = '') {
   wizFoot = `<div class="left">${state.step > 0 ? '<button class="btn" id="btn-back">Back</button>' : ''}${extraLeft}</div><div class="right"><span class="wiz-status">${canNext ? 'Changes saved' : esc(blocked)}</span><button class="btn primary" id="btn-next" ${canNext ? '' : 'disabled'}>${nextLabel} ${ICONS.arrow}</button></div>`;
@@ -394,7 +395,12 @@ R.account = () => `<div class="auth"><div class="auth-card">
   <img class="logo" src="assets/logo_black.png" alt="Qualiphy" />
   <h2>Create Free Account</h2>
   <div class="sub">Please Enter Your Details to Try Us Out!</div>
-  <input class="plain" type="email" id="acct-email" data-path="account.email" value="${esc(state.form.account.email)}" placeholder="example@qualiphy.me" />
+  <div class="auth-fields">
+    <input class="plain" type="text" id="acct-name" data-path="account.name" value="${esc(state.form.account.name)}" placeholder="Your full name" autocomplete="name" aria-label="Your full name" />
+    <input class="plain" type="email" id="acct-email" data-path="account.email" value="${esc(state.form.account.email)}" placeholder="example@qualiphy.me" autocomplete="email" aria-label="Work email" />
+    <input class="plain" type="tel" id="acct-phone" data-path="account.phone" value="${esc(state.form.account.phone)}" placeholder="Phone number" autocomplete="tel" aria-label="Phone number" />
+  </div>
+  <div class="auth-note">You are the account manager for your clinic: you sign the service agreement and hear from us about billing and results.</div>
   <button class="btn primary" id="btn-next" ${stepValid('account') ? '' : 'disabled'}>Sign Up</button>
   <div class="foot">Already have an account? <b>Login</b></div>
   <div class="foot">Connect to a provider in seconds!</div>
@@ -422,14 +428,10 @@ R.clinic = () => {
         <h3 class="wiz-h3">Practice details</h3>
         <div class="stack">${field('Practice name', 'clinic.practice', { ph: 'Name of practice' })}${field('Practice phone (optional)', 'clinic.phone', { ph: '(___) ___-____' })}</div>
         <hr class="wiz-hr" />
-        <h3 class="wiz-h3">Practice location</h3><div class="wiz-h3sub">Start typing your address, then select a match.</div>
+        <h3 class="wiz-h3">Business address</h3><div class="wiz-h3sub">Start typing your address, then select a match. Telehealth-only clinics: use your business address.</div>
         ${addr}
       </div>
       <aside class="wiz-aside"><div class="ico">${ICONS.clinicBig}</div><div class="t">Your clinic profile</div><div>This is the practice information patients and providers will see.</div></aside></div>`;
-  } else if (sub === 1) {
-    title = 'Who manages this account?'; help = 'The person we contact about the account. Signed in as ' + esc(state.form.account.email || 'you') + '.';
-    body = `<div class="wiz-cols"><div><h3 class="wiz-h3">Account manager</h3><div class="grid two">${field('Full name', 'clinic.adminName', { ph: 'Full name' })}${field('Phone number', 'clinic.adminPhone', { ph: '(___) ___-____' })}</div></div>
-      <aside class="wiz-aside"><div class="ico">${ICONS.people}</div><div class="t">Your account manager</div><div>Signs the service agreement and hears from us about billing, results and anything that needs a decision.</div></aside></div>`;
   } else {
     title = 'Do you have more than one location?'; help = 'You can add more locations any time from Clinics.';
     body = `<div class="wiz-cols"><div><div class="opts">
@@ -438,7 +440,7 @@ R.clinic = () => {
       </div></div>
       <aside class="wiz-aside"><div class="ico">${ICONS.locations}</div><div class="t">Locations</div><div>Results, exams and billing are tracked per location, so each one gets its own profile.</div></aside></div>`;
   }
-  return card('', title, help, body, footer('Continue', clinicSubValid(sub), sub === 0 ? '<button class="link" id="btn-fill-clinic">Use sample</button>' : '', sub === 0 ? 'Add your practice name and address to continue' : sub === 1 ? 'Add the account manager to continue' : ''));
+  return card('', title, help, body, footer('Continue', clinicSubValid(sub), sub === 0 ? '<button class="link" id="btn-fill-clinic">Use sample</button>' : '', sub === 0 ? 'Add your practice name and business address to continue' : ''));
 };
 
 R.md = () => {
@@ -468,7 +470,7 @@ R.md = () => {
 };
 
 R.agreement = () => {
-  const a = state.form.agreement; const md = state.form.md; const admin = state.form.clinic.adminName || 'Account admin'; const practice = state.form.clinic.practice || 'your clinic';
+  const a = state.form.agreement; const md = state.form.md; const admin = state.form.account.name || 'Account manager'; const practice = state.form.clinic.practice || 'your clinic';
   const lvl = (id, ico, title, desc, bullets, rec) => `<div class="level ${a.level === id ? 'sel' : ''}" data-level="${id}"><div class="lv-top"><span class="lv-ico">${ico}</span>${rec ? '<span class="rec-pill">Recommended</span>' : ''}<span class="free-pill">No extra charge</span><span class="lv-radio"></span></div><div class="t">${title}</div><div class="d">${desc}</div><ul>${bullets.map(b => `<li>${b}</li>`).join('')}</ul></div>`;
   const addendum = a.level !== 'rx' ? '' : md.pending
     ? `<div class="doc"><span class="doc-ico">${ICONS.docPlus}</span><div><div class="t">Prescribing addendum</div><div class="d">Medical director pending</div></div><span class="status-pill muted">Sent once your medical director is added</span><span class="doc-acts"><button type="button" class="link nou">View details</button></span></div><div class="wiz-info">${ICONS.info}<span>Prescribing becomes available once your medical director is added, verified and has signed the addendum.</span></div>`
@@ -487,7 +489,7 @@ function toggleRow(qid, f, A) {
   const on = togOn(A, f); const ack = A.fu[f.id + '_ack'];
   const onL = f.yesNo ? 'Yes' : 'On', offL = f.yesNo ? 'No' : 'Off';
   return `<div class="tg-row ${on ? 'on' : ''}">
-    <div class="tg-txt"><div class="tg-t">${esc(f.label)}</div>${f.desc ? `<div class="tg-d">${esc(f.desc)}</div>` : ''}
+    <div class="tg-txt"><div class="tg-t">${esc(f.label)}</div>${f.desc ? `<div class="tg-d">${esc(f.desc)}</div>` : ''}${f.offDesc ? `<div class="tg-off ${on ? '' : 'now'}"><b>${on ? (f.yesNo ? 'If you choose No' : 'If you turn this off') : (f.yesNo ? 'You chose No' : 'This is off')}:</b> ${esc(f.offDesc)}</div>` : ''}
       ${f.pros ? `<div class="pc"><div class="pro"><b>Pro</b><span>${esc(f.pros)}</span></div><div class="con"><b>Con</b><span>${esc(f.cons)}</span></div></div>` : ''}
       ${!on && f.offTerms ? `<div class="tg-ack ${ack ? 'ok' : ''}">${ack ? ICONS.check + '<span>Your clinic accepted responsibility for this.</span>' : '<span>Responsibility terms not accepted yet.</span>'}<button type="button" class="link purple nou" data-terms="${qid}:${f.id}">View terms</button></div>` : ''}
       ${plumbChips(f.effects[on ? 'on' : 'off'])}</div>
@@ -511,15 +513,17 @@ function termsModalHtml() {
     : '<button type="button" class="btn" id="terms-keep">Keep it on</button><button type="button" class="btn primary" id="terms-accept">I understand and accept</button>';
   return `<div class="wmodal-wrap" id="terms-wrap"><div class="wmodal" role="dialog" aria-modal="true" aria-labelledby="terms-title">
     <div class="wm-h"><div class="wm-k">Terms of use</div><h3 id="terms-title">Before you turn off: ${esc(f.label)}</h3></div>
-    <div class="wm-b"><p>If this is off, your clinic is responsible for the following.</p><div class="wm-terms">${esc(f.offTerms)}</div><p class="muted small">We record who accepted this and when. You can turn it back on any time in Settings.</p></div>
+    <div class="wm-b">${f.offDesc ? `<p><b>What changes:</b> ${esc(f.offDesc)}</p>` : ''}<p>If this is off, your clinic is responsible for the following.</p><div class="wm-terms">${esc(f.offTerms)}</div><div class="wm-api">${ICONS.book}<span>It is your responsibility to deliver these links and messages to your patients yourself. Use our <a href="${API_DOCS_URL}" target="_blank" rel="noopener noreferrer">API documentation</a> to retrieve exam and care links and send them from your own system.</span></div><p class="muted small">We record who accepted this and when. You can turn it back on any time in Settings.</p></div>
     <div class="wm-f">${acts}</div></div></div>`;
 }
 function teamBody() {
   const people = team(); const roles = teamRoles();
   const nm = (p, i) => (p.name || '').trim() || `Person ${i + 1}`;
-  const rows = people.map((p, i) => `<div class="cl-row"><div class="field"><label>Name</label><input data-team="${i}:name" value="${esc(p.name)}" placeholder="Full name" /></div><div class="field"><label>Email</label><input type="email" data-team="${i}:email" value="${esc(p.email)}" placeholder="name@clinic.com" /></div><div class="field"><label>Phone</label><input data-team="${i}:phone" value="${esc(p.phone)}" placeholder="(___) ___-____" /></div>${i > 0 ? `<button type="button" class="link cl-del" data-team-del="${i}" title="Remove ${esc(nm(p, i))}" aria-label="Remove ${esc(nm(p, i))}">&times;</button>` : '<span></span>'}</div>`).join('');
+  const tag = p => p.you ? '<span class="pchip-tag">(you)</span>' : p.md ? '<span class="pchip-tag">(medical director)</span>' : '';
+  const form = (p, i) => `<div class="cl-row"><div class="field"><label>Name</label><input data-team="${i}:name" value="${esc(p.name)}" placeholder="Full name" /></div><div class="field"><label>Email</label><input type="email" data-team="${i}:email" value="${esc(p.email)}" placeholder="name@clinic.com" /></div><div class="field"><label>Phone</label><input data-team="${i}:phone" value="${esc(p.phone)}" placeholder="(___) ___-____" /></div><button type="button" class="link cl-del" data-team-del="${i}" title="Remove ${esc(nm(p, i))}" aria-label="Remove ${esc(nm(p, i))}">&times;</button></div>`;
   const roleRows = roles.map(r => {
-    const chips = people.map((p, i) => { const on = !!p.roles[r.id]; return `<button type="button" class="pchip ${on ? 'on' : ''}" data-team-role="${r.id}:${i}" aria-pressed="${on}">${on ? ICONS.check : ''}<span data-team-name="${i}">${esc(nm(p, i))}</span></button>`; }).join('');
+    const chips = people.map((p, i) => { const on = !!p.roles[r.id]; return `<button type="button" class="pchip ${on ? 'on' : ''}" data-team-role="${r.id}:${i}" aria-pressed="${on}">${on ? ICONS.check : ''}<span data-team-name="${i}">${esc(nm(p, i))}</span>${tag(p)}</button>`; }).join('');
+    const forms = people.map((p, i) => p.home === r.id ? form(p, i) : '').join('');
     const covered = teamPeople(r.id).length > 0;
     let st = '';
     if (r.statuses) {
@@ -529,12 +533,12 @@ function teamBody() {
     return `<div class="role-row">
       <div class="role-h"><div class="role-t">${esc(r.label)} ${r.required ? '<span class="rec-pill">Required</span>' : '<span class="opt-pill">Optional</span>'}</div>${r.required ? `<span class="cover ${covered ? 'ok' : 'warn'}">${covered ? 'Covered' : 'Choose someone'}</span>` : ''}</div>
       <div class="role-d">${esc(r.desc)}</div>${r.tip ? `<div class="wiz-tip">${ICONS.info}<span>${esc(r.tip)}</span></div>` : ''}
-      <div class="pchips">${chips}</div>${st}
+      <div class="pchips">${chips}${people.length < 8 ? `<button type="button" class="pchip add" data-team-add="${r.id}">+ Add a person</button>` : ''}</div>
+      ${forms ? `<div class="cl-list">${forms}</div>` : ''}${st}
       ${plumbChips(r.effects)}
     </div>`;
   }).join('');
-  return `<div class="wiz-card"><h3 class="wiz-h3">Your people</h3><div class="wiz-h3sub">Everyone we might contact. Add each person once.</div><div class="cl-list">${rows}</div>${people.length < 8 ? '<button type="button" class="btn lav sm" id="team-add">Add a person</button>' : ''}</div>
-    <div class="wiz-card" style="margin-top:20px"><h3 class="wiz-h3">Who handles what</h3><div class="wiz-h3sub">Tap a name to assign it. One person can cover several topics.</div>${roleRows}</div>`;
+  return `<div class="wiz-card"><h3 class="wiz-h3">Who handles what</h3><div class="wiz-h3sub">For each topic, tap a name or add a person. One person can cover several topics, and you are already on the list.</div>${roleRows}</div>`;
 }
 function emrOtherChips(v) {
   const qv = (v.q || '').trim().toLowerCase();
@@ -599,15 +603,15 @@ function payForm(prefix, btnId, btnLabel) {
 function paySaved(brand, last4, exp) { return `<div class="saved"><div><div style="font-weight:600">${brand} ending ${last4}</div><div class="muted small">Expires ${exp}</div></div><span class="status-pill ok">On file</span></div>`; }
 R.payment = () => {
   const p = state.form.payment;
-  return card('', 'Add your payment method', 'No monthly fee, and nothing is charged today. You only pay for completed exams.',
-    `<div class="pay-grid">
+  return card('', 'Payment information', 'Add the card we bill as exams are completed.',
+    `<div class="pay-banner">${ICONS.shield}<span><b>No monthly fee, and nothing is charged today.</b> You only pay for completed exams.</span></div>
+     <div class="wiz-card"><div class="pay-grid">
        <div class="paycard"><h3 class="wiz-h3">Primary payment method <span class="rec-pill">Required</span></h3><div class="wiz-h3sub">Charged only when an exam is completed.</div><div class="paybody">${p.done ? paySaved('Visa', '4242', '12/28') : payForm('pm', 'btn-pay', 'Save card')}</div></div>
        <div class="paycard"><h3 class="wiz-h3">Backup payment method <span class="opt-pill">Optional</span></h3><div class="wiz-h3sub">Recommended. Used only if your primary card is declined, so patient exams never stop.</div><div class="paybody">${p.backup ? paySaved('Mastercard', '5555', '08/29') : payForm('bk', 'btn-pay-backup', 'Save backup card')}</div></div>
      </div>
-     <div class="wiz-info" style="margin-top:18px">${ICONS.info}<span>No subscription and no monthly charge. Each completed exam is billed at your clinic's rate.</span></div>
      
-     `,
-    footer('Finish setup', stepValid('payment'), '', 'Save a card to finish setup'));
+     </div>`,
+    footer('Finish setup', stepValid('payment'), '', 'Save a card to finish setup'), { bare: true });
 };
 
 function renderSignup() {
@@ -722,8 +726,8 @@ function pageSettings() {
    clinic picked become Approved / Deferred contacts; the outreach toggle is the
    "Qualiphy Providers Contact Patients for Pending Consultations" switch. */
 function seedContacts() {
-  const f = state.form; const c = f.clinic;
-  return [{ name: c.adminName || '', email: f.account.email || '', phone: c.adminPhone || '' }];
+  const f = state.form;
+  return [{ name: f.account.name || '', email: f.account.email || '', phone: f.account.phone || '' }];
 }
 function seedNotif() {
   const A = ans('comms');
@@ -833,8 +837,8 @@ function next() {
   if (state.returnToPortal && s.kind === 'md') { state.returnToPortal = false; state.view = 'portal'; state.notif = null; render(); window.scrollTo(0, 0); if (!state.form.md.pending) toast('Medical director verified. You can send exams now.'); return; }
   if (s.kind === 'profile') { const ids = activeQs(); if (state.sub < ids.length - 1) { state.sub++; render(); window.scrollTo(0, 0); return; } }
   if (s.kind === 'clinic' && state.sub < CLINIC_SUBS - 1) { state.sub++; render(); window.scrollTo(0, 0); return; }
-  if (state.step < STEPS.length - 1) { state.step++; state.sub = 0; render(); window.scrollTo(0, 0); }
-  else { state.view = 'portal'; if (!state.tour.done) state.tour = { active: true, step: 0, done: false }; render(); window.scrollTo(0, 0); }
+  if (state.step < STEPS.length - 1) { state.step++; state.sub = 0; state.maxStep = Math.max(state.maxStep, state.step); render(); window.scrollTo(0, 0); }
+  else { state.view = 'portal'; state.maxStep = STEPS.length; if (!state.tour.done) state.tour = { active: true, step: 0, done: false }; render(); window.scrollTo(0, 0); }
 }
 function back() {
   const s = STEPS[state.step];
@@ -846,9 +850,10 @@ function setPath(path, val) { const [g, k] = path.split('.'); state.form[g][k] =
 document.addEventListener('click', e => {
   const pb = e.target.closest('.pb[data-view]'); if (pb) { state.view = pb.dataset.view === 'signup' && state.step === STEPS.length - 1 && state.form.payment.done && sessionStorage.getItem(STORE_KEY) && state.view === 'portal' ? 'portal' : pb.dataset.view; render(); window.scrollTo(0, 0); return; }
   if (e.target.id === 'btn-reset') { if (confirm('Reset the demo to a blank signup?')) { try { sessionStorage.removeItem(STORE_KEY); } catch (x) {} location.reload(); } return; }
-  if (e.target.id === 'btn-sample') { fillSample(); state.view = 'signup'; state.step = STEPS.findIndex(s => s.kind === 'profile'); state.sub = 0; render(); window.scrollTo(0, 0); return; }
+  if (e.target.id === 'btn-sample') { fillSample(); state.view = 'signup'; state.step = STEPS.findIndex(s => s.kind === 'profile'); state.sub = 0; state.maxStep = Math.max(state.maxStep, state.step); render(); window.scrollTo(0, 0); return; }
   if (e.target.id === 'btn-next') { next(); return; }
   if (e.target.id === 'btn-back') { back(); return; }
+  const gs = e.target.closest('.ws.go[data-step]'); if (gs) { state.step = +gs.dataset.step; state.sub = 0; render(); window.scrollTo(0, 0); return; }
   const nav = e.target.closest('[data-page]');
   if (nav && state.view === 'portal' && !e.target.closest('.tour-card')) { state.portalPage = nav.dataset.page; state.settingsPanel = nav.dataset.panel || null; state.showKey = false; render(); window.scrollTo(0, 0); return; }
   if (e.target.id === 'quidget-open') { state.portalPage = 'settings'; state.settingsPanel = 'quidget'; render(); window.scrollTo(0, 0); setTimeout(() => { state.settingsPanel = null; const b = $('#set-wpq'); if (b) b.classList.remove('hilite'); }, 2400); return; }
@@ -857,10 +862,10 @@ document.addEventListener('click', e => {
   const mdm = e.target.closest('[data-md-mode]'); if (mdm) { state.form.md.pending = mdm.dataset.mdMode === 'pending'; render(); return; }
   const soon = e.target.closest('[data-soon]'); if (soon) { e.preventDefault(); toast(soon.dataset.soon === 'blog' ? 'This will open our "Why do I need a medical director?" article.' : 'This will open our page on getting a medical director.'); return; }
   const trm = e.target.closest('[data-terms]'); if (trm) { const [qid, fid] = trm.dataset.terms.split(':'); state.termsModal = { qid, fid }; render(); return; }
-  if (e.target.id === 'terms-accept') { const { qid, fid } = state.termsModal; const A = ans(qid); A.fu[fid] = false; A.fu[fid + '_ack'] = { by: state.form.clinic.adminName || state.form.account.email || 'clinic admin', at: new Date().toISOString() }; state.termsModal = null; render(); return; }
+  if (e.target.id === 'terms-accept') { const { qid, fid } = state.termsModal; const A = ans(qid); A.fu[fid] = false; A.fu[fid + '_ack'] = { by: state.form.account.name || state.form.account.email || 'clinic admin', at: new Date().toISOString() }; state.termsModal = null; render(); return; }
   if (e.target.id === 'terms-keep') { const { qid, fid } = state.termsModal; const A = ans(qid); A.fu[fid] = true; delete A.fu[fid + '_ack']; state.termsModal = null; render(); return; }
   if (e.target.id === 'terms-close' || e.target.id === 'terms-wrap') { state.termsModal = null; render(); return; }
-  if (e.target.id === 'team-add') { team().push(newPerson()); render(); const el = document.querySelector(`[data-team="${team().length - 1}:name"]`); if (el) el.focus(); return; }
+  const tadd = e.target.closest('[data-team-add]'); if (tadd) { const r = tadd.dataset.teamAdd; team().push(newPerson({ home: r, roles: { [r]: true } })); render(); const el = document.querySelector(`[data-team="${team().length - 1}:name"]`); if (el) el.focus(); return; }
   const tdel = e.target.closest('[data-team-del]'); if (tdel) { team().splice(+tdel.dataset.teamDel, 1); render(); return; }
   const trole = e.target.closest('[data-team-role]'); if (trole) { const [r, k] = trole.dataset.teamRole.split(':'); const p = team()[+k]; if (p) p.roles[r] = !p.roles[r]; render(); return; }
   const epick = e.target.closest('[data-emr-pick]'); if (epick) { const v = emrState(); v.pick = v.pick === epick.dataset.emrPick ? null : epick.dataset.emrPick; render(); return; }
@@ -877,15 +882,15 @@ document.addEventListener('click', e => {
   const sb = e.target.closest('.set-btn[data-panel]'); if (sb) { state.settingsPanel = state.settingsPanel === sb.dataset.panel ? null : sb.dataset.panel; render(); return; }
   const kc = e.target.closest('.key-copy'); if (kc) { try { navigator.clipboard.writeText(pluginKey()); } catch (x) {} toast('API Key (Default Clinic) copied to clipboard'); return; }
   const kt = e.target.closest('.key-toggle'); if (kt) { state.showKey = !state.showKey; render(); return; }
-  if (e.target.closest('#set-logout')) { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.termsModal = null; state.returnToPortal = false; state.view = 'signup'; state.step = 0; state.sub = 0; state.portalPage = 'dashboard'; render(); window.scrollTo(0, 0); return; }
+  if (e.target.closest('#set-logout')) { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.termsModal = null; state.returnToPortal = false; state.view = 'signup'; state.step = 0; state.sub = 0; state.maxStep = 0; state.portalPage = 'dashboard'; render(); window.scrollTo(0, 0); return; }
   if (e.target.id === 'tour-next') { if (state.tour.step < TOUR.length - 1) { state.tour.step++; } else { state.tour = { active: false, step: 0, done: true }; } render(); return; }
   if (e.target.id === 'tour-skip') { state.tour = { active: false, step: 0, done: true }; render(); return; }
   if (e.target.id === 'tour-start') { state.tour = { active: true, step: 0, done: false }; render(); return; }
-  if (e.target.id === 'btn-restart') { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.termsModal = null; state.returnToPortal = false; state.view = 'signup'; state.step = 0; state.sub = 0; state.portalPage = 'dashboard'; render(); window.scrollTo(0, 0); return; }
+  if (e.target.id === 'btn-restart') { state.form = freshForm(); state.answers = {}; state.tour = { active: false, step: 0, done: false }; state.termsModal = null; state.returnToPortal = false; state.view = 'signup'; state.step = 0; state.sub = 0; state.maxStep = 0; state.portalPage = 'dashboard'; render(); window.scrollTo(0, 0); return; }
   if (e.target.id === 'btn-skip') { const ids = activeQs(); const id = ids[state.sub]; if (id && !q(id).mode) { const A = ans(id); A.choice = null; A.choices = []; A.seeded = false; } next(); return; }
   if (e.target.id === 'btn-skip-exams') { state.form.exams.services = []; next(); return; }
-  if (e.target.id === 'btn-fill-account') { state.form.account.email = SAMPLE.admin.email; render(); return; }
-  if (e.target.id === 'btn-fill-clinic') { Object.assign(state.form.clinic, { practice: SAMPLE.practice, phone: SAMPLE.phone, address1: SAMPLE.address1, city: SAMPLE.city, state: SAMPLE.state, zip: SAMPLE.zip, adminName: SAMPLE.admin.first + ' ' + SAMPLE.admin.last, adminPhone: SAMPLE.phone, addrPicked: true, addrQuery: SAMPLE.address1 }); render(); return; }
+  if (e.target.id === 'btn-fill-account') { Object.assign(state.form.account, { name: SAMPLE.admin.first + ' ' + SAMPLE.admin.last, email: SAMPLE.admin.email, phone: SAMPLE.admin.phone }); render(); return; }
+  if (e.target.id === 'btn-fill-clinic') { Object.assign(state.form.clinic, { practice: SAMPLE.practice, phone: SAMPLE.phone, address1: SAMPLE.address1, city: SAMPLE.city, state: SAMPLE.state, zip: SAMPLE.zip, addrPicked: true, addrQuery: SAMPLE.address1 }); render(); return; }
   if (e.target.id === 'btn-fill-md') { Object.assign(state.form.md, SAMPLE.md); state.form.md.verified = npiLookup(state.form.md.npi).ok; render(); return; }
   if (e.target.id === 'btn-sign') { state.form.agreement.signed = true; render(); return; }
   if (e.target.id === 'btn-pay') { state.form.payment.done = true; render(); return; }
@@ -938,9 +943,9 @@ document.addEventListener('input', e => {
 });
 
 function fillSample() {
-  state.form.account.email = SAMPLE.admin.email;
+  Object.assign(state.form.account, { name: SAMPLE.admin.first + ' ' + SAMPLE.admin.last, email: SAMPLE.admin.email, phone: SAMPLE.admin.phone });
   state.form.terms.accepted = false;   /* the clinic must tick this themselves */
-  Object.assign(state.form.clinic, { practice: SAMPLE.practice, phone: SAMPLE.phone, address1: SAMPLE.address1, city: SAMPLE.city, state: SAMPLE.state, zip: SAMPLE.zip, adminName: SAMPLE.admin.first + ' ' + SAMPLE.admin.last, adminPhone: SAMPLE.phone, multi: 'one', addrPicked: true, addrQuery: SAMPLE.address1 });
+  Object.assign(state.form.clinic, { practice: SAMPLE.practice, phone: SAMPLE.phone, address1: SAMPLE.address1, city: SAMPLE.city, state: SAMPLE.state, zip: SAMPLE.zip, multi: 'one', addrPicked: true, addrQuery: SAMPLE.address1 });
   Object.assign(state.form.md, SAMPLE.md, { verified: true, pending: false });
   state.form.agreement = { level: 'rx', signed: true };
 }

@@ -21,7 +21,7 @@ const STEPS = [
   { id: 'agreement', label: 'Agreement',        figma: 'Contract: levels of service',   kind: 'agreement' },
   { id: 'profile',   label: 'Setup questions',  figma: 'Profile Configuration',         kind: 'profile' },
   { id: 'exams',     label: 'Exams',            figma: 'Activation of Exams',           kind: 'exams' },
-  { id: 'payment',   label: 'Payment',          figma: '(existing Payment step)',       kind: 'payment' },
+  { id: 'payment',   label: 'Payment information', figma: '(existing Payment step)',    kind: 'payment' },
 ];
 
 const STATE_ABBR = { 'Alabama':'AL','Alaska':'AK','Arizona':'AZ','Arkansas':'AR','California':'CA','Colorado':'CO','Connecticut':'CT','Delaware':'DE','District of Columbia':'DC','Florida':'FL','Georgia':'GA','Hawaii':'HI','Idaho':'ID','Illinois':'IL','Indiana':'IN','Iowa':'IA','Kansas':'KS','Kentucky':'KY','Louisiana':'LA','Maine':'ME','Maryland':'MD','Massachusetts':'MA','Michigan':'MI','Minnesota':'MN','Mississippi':'MS','Missouri':'MO','Montana':'MT','Nebraska':'NE','Nevada':'NV','New Hampshire':'NH','New Jersey':'NJ','New Mexico':'NM','New York':'NY','North Carolina':'NC','North Dakota':'ND','Ohio':'OH','Oklahoma':'OK','Oregon':'OR','Pennsylvania':'PA','Rhode Island':'RI','South Carolina':'SC','South Dakota':'SD','Tennessee':'TN','Texas':'TX','Utah':'UT','Vermont':'VT','Virginia':'VA','Washington':'WA','West Virginia':'WV','Wisconsin':'WI','Wyoming':'WY' };
@@ -66,7 +66,7 @@ const TZ_ORIGIN = {
 /* Sample data the demo can drop in with one click. */
 const SAMPLE = {
   practice: 'Glow Aesthetics', phone: '(469) 555-0100', address1: '4200 Legacy Dr, Suite 120', city: 'Frisco', state: 'TX', zip: '75034',
-  admin: { first: 'Dana', last: 'Whitfield', email: 'dana@glowaesthetics.example' },
+  admin: { first: 'Dana', last: 'Whitfield', email: 'dana@glowaesthetics.example', phone: '(469) 555-0117' },
   md: { name: 'Priya Raman', email: 'praman@glowaesthetics.example', phone: '(469) 555-0142', npi: '1234567893' },
 };
 
@@ -125,13 +125,15 @@ const QUESTIONS = [
       { id: 'invite', type: 'toggle', section: 'messages', default: true, showIf: ['custom'],
         label: 'Qualiphy sends the exam invite',
         desc: 'Patients get their exam link by email and text as soon as you send it.',
-        offTerms: 'Your clinic will deliver every exam link to the patient itself. Exams that are delayed or never started because a patient did not receive the link are your clinic\'s responsibility.',
+        offDesc: 'We do not email or text the exam link. Your clinic sends each patient their link, for example from your own system through our API.',
+        offTerms: 'Your clinic will deliver every exam link to the patient itself, using the Qualiphy API documentation to retrieve the links. Exams that are delayed or never started because a patient did not receive the link are your clinic\'s responsibility.',
         note: '',
         effects: { on: [{ label: 'Exam invite email + SMS', value: 'on', where: 'portal', inv: 'Approved-exam notification', via: 'POST /update_clinic_notification' }],
                    off: [{ label: 'Exam invite email + SMS', value: 'off, clinic delivers links', where: 'nowhere', inv: null, via: 'no invite-only switch today' }] } },
       { id: 'reminders', type: 'toggle', section: 'messages', default: true, showIf: ['custom'],
         label: 'Qualiphy sends reminders for unfinished exams',
         desc: 'A reminder goes out if a patient has not finished their exam.',
+        offDesc: 'We do not chase patients who have not finished. Your clinic reminds them and resends the exam link if needed.',
         offTerms: 'Your clinic will remind patients who have not finished their exam.',
         note: '',
         effects: { on: [{ label: 'Exam reminder notifications', value: 'on', where: 'superadmin', inv: null, via: 'exam-level sms_notification / email_notification' }],
@@ -139,12 +141,14 @@ const QUESTIONS = [
       { id: 'carelinks', type: 'toggle', section: 'messages', default: true, showIf: ['custom'],
         label: 'Qualiphy sends follow-up care links',
         desc: 'Aftercare instructions and care links after the visit.',
-        offTerms: 'Your clinic will give every patient their aftercare instructions and follow-up care information after the visit.',
+        offDesc: 'We do not send aftercare instructions or care links. Your clinic gives every patient their aftercare information after the visit.',
+        offTerms: 'Your clinic will give every patient their aftercare instructions and follow-up care information after the visit, using the Qualiphy API documentation to retrieve the care links.',
         note: '',
         effects: { on: [{ label: 'Follow-up care links', value: 'on', where: 'superadmin', inv: null, via: 'follow-up templates' }],
                    off: [{ label: 'Follow-up care links', value: 'off', where: 'superadmin', inv: null, via: 'follow-up templates' }] } },
-      { id: 'deferral', type: 'toggle', section: 'live', yesNo: true, default: true, showIf: ['custom'],
-        label: 'Notify patients if the provider declines treatment during a video visit',
+      { id: 'deferral', type: 'toggle', section: 'live', yesNo: true, default: false, showIf: ['custom'],
+        label: 'Notify patients of a deferral during the video visit',
+        offDesc: 'The provider does not tell the patient on the call. Your clinic delivers the deferral decision and the next steps.',
         pros: 'The patient hears the decision and the reason directly from the provider.',
         cons: 'The patient may hear it before your staff has a chance to reach out.',
         note: '',
@@ -152,6 +156,7 @@ const QUESTIONS = [
                    off: [{ label: 'Deferred-exam notification', value: 'off', where: 'portal', inv: 'Deferred-exam notification', via: 'POST /update_clinic_notification' }] } },
       { id: 'outreach', type: 'toggle', section: 'live', yesNo: true, default: true, showIf: ['custom'],
         label: 'Call patients who have not completed their exam yet',
+        offDesc: 'Our care team does not call. Your clinic follows up with patients who have not completed their exam.',
         pros: 'More patients finish their exam, with no extra work for your staff.',
         cons: 'Patients get a call from our care team rather than from your clinic.',
         note: '',
@@ -159,6 +164,7 @@ const QUESTIONS = [
                    off: [{ label: 'Providers contact patients for pending consults', value: 'off', where: 'portal', inv: 'Qualiphy providers contact patients', via: 'POST /update_clinic_notification' }] } },
       { id: 'followup', type: 'toggle', section: 'live', yesNo: true, rxOnly: true, default: true, showIf: ['custom'],
         label: 'Send a follow-up email after a prescription visit',
+        offDesc: 'We do not email patients after a prescription visit. Your clinic handles dosing questions and follow-up itself.',
         pros: 'Patients get dosing reminders and know who to contact with questions.',
         cons: 'Some clinics prefer to send their own branded follow-up.',
         offTerms: 'Your clinic will follow up with every patient after a prescription visit, including dosing questions and side effects.',
@@ -171,7 +177,7 @@ const QUESTIONS = [
   {
     id: 'team',
     pageTitle: 'Tell us who does what',
-    pageSub: 'Add the people we should know about once, then choose who we contact for each topic. You can change this any time in Settings.',
+    pageSub: 'For each topic, choose who we should contact. Add a person once and reuse them anywhere. You can change this any time in Settings.',
     mode: 'team',
     state: 'v1',
     short: 'Your team',
@@ -180,6 +186,7 @@ const QUESTIONS = [
     why: '',
     covers: [],
     by: [],
+    reqs: [],
     evidence: '',
     answers: [{ id: 'team', label: 'Team contacts', rec: true, effects: [] }],
     roles: [

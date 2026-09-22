@@ -670,3 +670,23 @@ textarea.export { width: 100%; min-height: 480px; border: 1px solid var(--line);
 .empty { color: var(--ink-60); padding: 24px; text-align: center; }
 
 .sidemenu .ico svg[fill="none"] { fill: none; }
+
+/* ---------- 09-22: Noah's email review ---------- */
+.ws.go { cursor: pointer; border: 0; background: transparent; width: 100%; text-align: left; font: inherit; }
+.ws.go:hover { background: #f3f3f8; }
+.ws.go:focus-visible { outline: 2px solid var(--wiz-purple); outline-offset: -2px; }
+.auth-fields { display: flex; flex-direction: column; gap: 10px; }
+.auth-note { font-size: 13px; color: #6b7280; margin-top: 10px; line-height: 1.45; }
+.tg-off { font-size: 13.5px; color: var(--ink-60); margin-top: 6px; line-height: 1.4; }
+.tg-off b { font-weight: 600; color: #14131a; }
+.tg-off.now, .tg-off.now b { color: #9a3412; }
+.wm-api { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 0; font-size: 14px; color: #14131a; line-height: 1.45; }
+.wm-api svg { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 2px; color: var(--wiz-purple-ink); }
+.wm-api a { color: var(--wiz-purple-ink); font-weight: 600; }
+.pchip.add { border-style: dashed; color: var(--wiz-purple-ink); background: #fff; }
+.pchip.add:hover { background: var(--wiz-purple-soft); }
+.pchip-tag { font-size: 11px; font-weight: 500; opacity: .7; }
+.role-row .cl-list { margin: 12px 0 0; }
+.pay-banner { display: flex; align-items: center; gap: 12px; background: var(--wiz-purple); color: #fff; border-radius: 10px; padding: 14px 18px; font-size: 16px; line-height: 1.4; margin: 0 0 20px; }
+.pay-banner b { font-weight: 700; }
+.pay-banner svg { width: 24px; height: 24px; flex: 0 0 24px; }
