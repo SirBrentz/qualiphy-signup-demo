@@ -1,7 +1,7 @@
 /* Qualiphy Clinic Signup mockup v2 - app shell
    No framework, no build step, no network. Open index.html and it runs. */
 
-const STORE_KEY = 'qualiphy-setup-wizard-mockup-v4';
+const STORE_KEY = 'qualiphy-setup-wizard-mockup-v5';
 
 /* ---------- state ---------- */
 function seedQState() { const s = {}; QUESTIONS.forEach(q => { s[q.id] = q.state; }); return s; }
